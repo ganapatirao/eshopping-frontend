@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, ArrowRight, Database, Sparkles } from 'lucide-react';
-import { categoriesAPI, productsAPI, seedAPI, advertisementsAPI } from '../services/api';
+import { ShoppingCart, ArrowRight, Sparkles } from 'lucide-react';
+import { categoriesAPI, productsAPI, advertisementsAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../utils/format';
 
@@ -10,7 +10,6 @@ const HomePage = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [advertisements, setAdvertisements] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const { addToCart } = useCart();
 
   useEffect(() => {
@@ -34,19 +33,6 @@ const HomePage = () => {
     }
   };
 
-  const handleSeedData = async () => {
-    setSeeding(true);
-    try {
-      await seedAPI.seedDatabase();
-      await fetchData();
-      alert('Database seeded successfully!');
-    } catch (error) {
-      console.error('Error seeding data:', error);
-      alert('Error seeding data. Please try again.');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const homeBannerAd = advertisements.find(ad => ad.position === 'HomeBanner');
 
@@ -95,17 +81,6 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Seed Data Button */}
-      <div className="container mx-auto px-4 pt-4">
-        <button
-          onClick={handleSeedData}
-          disabled={seeding}
-          className="inline-flex items-center space-x-2 bg-green-600 text-white text-sm px-3 py-1.5 rounded-full shadow hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Database size={16} />
-          <span>{seeding ? 'Seeding...' : 'Seed Database'}</span>
-        </button>
-      </div>
 
       {/* Root Categories */}
       <div className="container mx-auto px-4 py-8 sm:py-12">
