@@ -18,6 +18,7 @@ const ShoppingPage = () => {
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [advertisements, setAdvertisements] = useState([]);
+  const [filterOpen, setFilterOpen] = useState(false);
   const { addToCart } = useCart();
 
   useEffect(() => {
@@ -86,9 +87,21 @@ const ShoppingPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
+        {/* Mobile Filter Toggle */}
+        <div className="lg:hidden mb-4">
+          <button
+            onClick={() => setFilterOpen(!filterOpen)}
+            className="w-full flex items-center justify-center gap-2 bg-white rounded-xl shadow-md p-4 text-gray-700 font-medium"
+          >
+            <Filter size={20} />
+            <span>{filterOpen ? 'Hide Filters' : 'Show Filters'}</span>
+            {filterOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+          </button>
+        </div>
+
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar - Categories */}
-          <div className="lg:w-1/4">
+          <div className={`${filterOpen ? 'block' : 'hidden'} lg:block lg:w-1/4`}>
             <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-800">Categories</h2>

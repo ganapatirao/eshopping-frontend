@@ -232,7 +232,7 @@ const SmartHeader = () => {
                   <Search size={22} />
                 </button>
                 {searchOpen && (
-                  <div className="absolute right-0 top-14 w-96 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                  <div className="absolute right-0 top-14 left-0 sm:left-auto sm:right-0 w-full sm:w-96 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                     <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-purple-50 to-indigo-50">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
