@@ -1,9 +1,186 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ShoppingCart, Filter, ChevronDown, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Filter, ChevronDown, ChevronRight, X, Sparkles, Tag, Layers, SlidersHorizontal } from 'lucide-react';
 import { categoriesAPI, productsAPI, advertisementsAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../utils/format';
+
+const FilterContent = ({ 
+  rootCategories, 
+  getSubCategories, 
+  expandedCategories, 
+  toggleCategory, 
+  handleCategoryClick, 
+  handleSubCategoryClick, 
+  selectedCategory, 
+  selectedSubCategory,
+  priceRange,
+  setPriceRange,
+  sortBy,
+  setSortBy,
+  onClearAll,
+  onResetCategories
+}) => {
+  const categoryIcons = {
+    'Electronics': '📱',
+    'Clothing': '👕',
+    'Home': '🏠',
+    'Books': '📚',
+    'Sports': '⚽',
+    'Beauty': '💄',
+    'Toys': '🧸',
+    'Food': '🍔',
+  };
+
+  const getCategoryIcon = (name) => {
+    return categoryIcons[name] || '📦';
+  };
+
+  const hasActiveFilters = selectedCategory || selectedSubCategory || priceRange.min > 0 || priceRange.max < 10000 || sortBy !== 'featured';
+
+  return (
+    <div className="space-y-5">
+      {/* Clear All Button */}
+      {hasActiveFilters && (
+        <button
+          onClick={onClearAll}
+          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl p-3 font-semibold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+        >
+          <X size={18} />
+          Clear All Filters
+        </button>
+      )}
+
+      {/* Sort Options - Pills */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sort By</h3>
+          {sortBy !== 'featured' && (
+            <button
+              onClick={() => setSortBy('featured')}
+              className="text-xs text-red-500 hover:text-red-600 font-medium"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: 'featured', label: 'Featured', icon: '⭐' },
+            { id: 'price-low', label: 'Price: Low', icon: '📉' },
+            { id: 'price-high', label: 'Price: High', icon: '📈' },
+            { id: 'rating', label: 'Top Rated', icon: '⭐' }
+          ].map((option) => (
+            <button
+              key={option.id}
+              onClick={() => setSortBy(option.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                sortBy === option.id
+                  ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span>{option.icon}</span>
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Price Range - Compact */}
+      <div>
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Price Range</h3>
+        <div className="bg-gray-50 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">💰</span>
+              <span className="text-sm font-medium text-gray-700">₹{priceRange.min} - ₹{priceRange.max}</span>
+            </div>
+            {(priceRange.min > 0 || priceRange.max < 10000) && (
+              <button
+                onClick={() => setPriceRange({ min: 0, max: 10000 })}
+                className="text-xs text-red-500 hover:text-red-600 font-medium"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="10000"
+            value={priceRange.max}
+            onChange={(e) => setPriceRange({ ...priceRange, max: parseInt(e.target.value) })}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+          />
+        </div>
+      </div>
+
+      {/* Categories - Chips */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Categories</h3>
+          {(selectedCategory || selectedSubCategory) && (
+            <button
+              onClick={onResetCategories}
+              className="text-xs text-red-500 hover:text-red-600 font-medium"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="space-y-2">
+          {rootCategories.map(category => (
+            <div key={category.id}>
+              <button
+                onClick={() => {
+                  toggleCategory(category.id);
+                  handleCategoryClick(category);
+                }}
+                className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
+                  selectedCategory === category.id
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{getCategoryIcon(category.name)}</span>
+                  <span className="font-semibold">{category.name}</span>
+                </div>
+                {getSubCategories(category.id).length > 0 && (
+                  <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                    {getSubCategories(category.id).length}
+                  </span>
+                )}
+              </button>
+              
+              {expandedCategories.has(category.id) && getSubCategories(category.id).length > 0 && (
+                <div className="ml-4 mt-2 space-y-2">
+                  {getSubCategories(category.id).map(sub => (
+                    <button
+                      key={sub.id}
+                      onClick={() => handleSubCategoryClick(sub)}
+                      className={`w-full text-left p-2.5 rounded-lg transition-all ${
+                        selectedSubCategory === sub.id
+                          ? 'bg-purple-100 text-purple-700 font-medium'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{getCategoryIcon(sub.name)}</span>
+                        <span className="text-sm">{sub.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ShoppingPage = () => {
   const [searchParams] = useSearchParams();
@@ -19,6 +196,8 @@ const ShoppingPage = () => {
   const [loading, setLoading] = useState(true);
   const [advertisements, setAdvertisements] = useState([]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
+  const [sortBy, setSortBy] = useState('featured');
   const { addToCart } = useCart();
 
   useEffect(() => {
@@ -26,16 +205,39 @@ const ShoppingPage = () => {
   }, [selectedCategory, selectedSubCategory]);
 
   useEffect(() => {
+    let filtered = [...products];
+
+    // Apply search query filter
     if (searchQuery) {
-      const filtered = products.filter(product =>
+      filtered = filtered.filter(product =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setFilteredProducts(filtered);
-    } else {
-      setFilteredProducts(products);
     }
-  }, [searchQuery, products]);
+
+    // Apply price range filter
+    filtered = filtered.filter(product =>
+      product.price >= priceRange.min && product.price <= priceRange.max
+    );
+
+    // Apply sort
+    switch (sortBy) {
+      case 'price-low':
+        filtered.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-high':
+        filtered.sort((a, b) => b.price - a.price);
+        break;
+      case 'rating':
+        filtered.sort((a, b) => b.rating - a.rating);
+        break;
+      default:
+        // featured - keep original order
+        break;
+    }
+
+    setFilteredProducts(filtered);
+  }, [searchQuery, products, priceRange, sortBy]);
 
   const fetchData = async () => {
     try {
@@ -67,10 +269,25 @@ const ShoppingPage = () => {
   const handleCategoryClick = (category) => {
     setSelectedCategory(category.id);
     setSelectedSubCategory(null);
+    setFilterOpen(false);
   };
 
   const handleSubCategoryClick = (subCategory) => {
     setSelectedSubCategory(subCategory.id);
+    setFilterOpen(false);
+  };
+
+  const handleClearAll = () => {
+    setSelectedCategory(null);
+    setSelectedSubCategory(null);
+    setPriceRange({ min: 0, max: 10000 });
+    setSortBy('featured');
+    setFilterOpen(false);
+  };
+
+  const handleResetCategories = () => {
+    setSelectedCategory(null);
+    setSelectedSubCategory(null);
   };
 
   const rootCategories = categories.filter(c => !c.parentCategoryId);
@@ -91,67 +308,90 @@ const ShoppingPage = () => {
         <div className="lg:hidden mb-4">
           <button
             onClick={() => setFilterOpen(!filterOpen)}
-            className="w-full flex items-center justify-center gap-2 bg-white rounded-xl shadow-md p-4 text-gray-700 font-medium"
+            className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg p-4 font-semibold active:scale-[0.98] transition-all"
           >
-            <Filter size={20} />
+            <SlidersHorizontal size={22} />
             <span>{filterOpen ? 'Hide Filters' : 'Show Filters'}</span>
-            {filterOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+            {filterOpen ? <X size={22} /> : <ChevronDown size={22} />}
           </button>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Mobile Filter Overlay */}
+          {filterOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              onClick={() => setFilterOpen(false)}
+            >
+              <div 
+                className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[80vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <Layers size={24} className="text-blue-600" />
+                    Filters
+                  </h2>
+                  <button
+                    onClick={() => setFilterOpen(false)}
+                    className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <X size={24} className="text-gray-600" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  <FilterContent 
+                    rootCategories={rootCategories}
+                    getSubCategories={getSubCategories}
+                    expandedCategories={expandedCategories}
+                    toggleCategory={toggleCategory}
+                    handleCategoryClick={handleCategoryClick}
+                    handleSubCategoryClick={handleSubCategoryClick}
+                    selectedCategory={selectedCategory}
+                    selectedSubCategory={selectedSubCategory}
+                    priceRange={priceRange}
+                    setPriceRange={setPriceRange}
+                    sortBy={sortBy}
+                    setSortBy={setSortBy}
+                    onClearAll={handleClearAll}
+                    onResetCategories={handleResetCategories}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Sidebar - Categories */}
           <div className={`${filterOpen ? 'block' : 'hidden'} lg:block lg:w-1/4`}>
-            <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
+            <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-24 border border-gray-100">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-800">Categories</h2>
-                <Filter size={20} className="text-gray-600" />
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Layers size={22} className="text-blue-600" />
+                  Categories
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
+                    {rootCategories.length}
+                  </span>
+                </div>
               </div>
               
-              <div className="space-y-2">
-                {rootCategories.map(category => (
-                  <div key={category.id}>
-                    <button
-                      onClick={() => {
-                        toggleCategory(category.id);
-                        handleCategoryClick(category);
-                      }}
-                      className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
-                        selectedCategory === category.id
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      <span className="font-medium">{category.name}</span>
-                      {getSubCategories(category.id).length > 0 && (
-                        expandedCategories.has(category.id) ? (
-                          <ChevronDown size={16} />
-                        ) : (
-                          <ChevronRight size={16} />
-                        )
-                      )}
-                    </button>
-                    
-                    {expandedCategories.has(category.id) && getSubCategories(category.id).length > 0 && (
-                      <div className="ml-4 mt-2 space-y-1">
-                        {getSubCategories(category.id).map(sub => (
-                          <button
-                            key={sub.id}
-                            onClick={() => handleSubCategoryClick(sub)}
-                            className={`w-full text-left p-2 rounded-lg transition-colors ${
-                              selectedSubCategory === sub.id
-                                ? 'bg-blue-50 text-blue-600'
-                                : 'hover:bg-gray-100 text-gray-600'
-                            }`}
-                          >
-                            {sub.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <FilterContent 
+                rootCategories={rootCategories}
+                getSubCategories={getSubCategories}
+                expandedCategories={expandedCategories}
+                toggleCategory={toggleCategory}
+                handleCategoryClick={handleCategoryClick}
+                handleSubCategoryClick={handleSubCategoryClick}
+                selectedCategory={selectedCategory}
+                selectedSubCategory={selectedSubCategory}
+                priceRange={priceRange}
+                setPriceRange={setPriceRange}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                onClearAll={handleClearAll}
+                onResetCategories={handleResetCategories}
+              />
             </div>
           </div>
 
@@ -172,6 +412,22 @@ const ShoppingPage = () => {
 
             {/* Products Grid */}
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+              {/* Sort Bar */}
+              <div className="col-span-full flex items-center justify-between bg-white rounded-xl p-3 shadow-sm border border-gray-100 mb-2">
+                <span className="text-sm text-gray-600 font-medium">
+                  {filteredProducts.length} products
+                </span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                >
+                  <option value="featured">Featured</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
+                  <option value="rating">Top Rated</option>
+                </select>
+              </div>
               {filteredProducts.map((product, index) => (
                 <div key={product.id}>
                   <div className="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full">
