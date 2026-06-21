@@ -322,7 +322,7 @@ const SmartHeader = () => {
                   </button>
                 </div>
               ) : (
-                <Link to="/login" title="Login" className="hidden md:block p-2.5 text-gray-700 hover:text-blue-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all">
+                <Link to="/login" title="Login" className="p-2.5 text-gray-700 hover:text-blue-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all">
                   <User size={22} />
                 </Link>
               )
