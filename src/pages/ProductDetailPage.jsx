@@ -26,6 +26,9 @@ const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const [added, setAdded] = useState(false);
+  const [selectedColor, setSelectedColor] = useState(null);
+  const [selectedSize, setSelectedSize] = useState(null);
+  const [selectedVariant, setSelectedVariant] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -34,7 +37,17 @@ const ProductDetailPage = () => {
     productsAPI
       .getById(id)
       .then((res) => {
-        if (active) setProduct(res.data);
+        if (active) {
+          setProduct(res.data);
+          // Set default selections
+          if (res.data.availableColors?.length > 0) {
+            const firstColor = res.data.availableColors[0];
+            setSelectedColor(typeof firstColor === 'string' ? { name: firstColor, code: '#000000' } : firstColor);
+          }
+          if (res.data.availableSizes?.length > 0) {
+            setSelectedSize(res.data.availableSizes[0]);
+          }
+        }
       })
       .catch(() => active && setError(true))
       .finally(() => active && setLoading(false));
@@ -43,21 +56,51 @@ const ProductDetailPage = () => {
     };
   }, [id]);
 
-  const images =
-    product?.imageUrls && product.imageUrls.length > 0
-      ? product.imageUrls
-      : product?.imageUrl
-      ? [product.imageUrl]
-      : [];
+  // Update selected variant when color or size changes
+  useEffect(() => {
+    if (selectedColor && selectedSize && product?.variants) {
+      const colorName = typeof selectedColor === 'string' ? selectedColor : selectedColor.name;
+      const variant = product.variants.find(
+        v => v.color === colorName && v.size === selectedSize
+      );
+      setSelectedVariant(variant || null);
+    }
+  }, [selectedColor, selectedSize, product]);
+
+  // Reset active image when color changes
+  useEffect(() => {
+    setActiveImage(0);
+  }, [selectedColor]);
+
+  const images = (() => {
+    // If a color is selected and has images, use those
+    if (selectedColor && selectedColor.images && selectedColor.images.length > 0) {
+      return selectedColor.images;
+    }
+    // Otherwise, use product's default images
+    if (product?.imageUrls && product.imageUrls.length > 0) {
+      return product.imageUrls;
+    }
+    if (product?.imageUrl) {
+      return [product.imageUrl];
+    }
+    return [];
+  })();
 
   const handleAddToCart = () => {
-    addToCart(product, quantity);
+    const productToAdd = selectedVariant 
+      ? { ...product, price: selectedVariant.price, originalPrice: selectedVariant.originalPrice, stock: selectedVariant.stock, selectedVariant }
+      : product;
+    addToCart(productToAdd, quantity);
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
 
   const handleBuyNow = () => {
-    addToCart(product, quantity);
+    const productToAdd = selectedVariant 
+      ? { ...product, price: selectedVariant.price, originalPrice: selectedVariant.originalPrice, stock: selectedVariant.stock, selectedVariant }
+      : product;
+    addToCart(productToAdd, quantity);
     navigate('/cart');
   };
 
@@ -90,6 +133,14 @@ const ProductDetailPage = () => {
       ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
       : 0;
 
+  const currentPrice = selectedVariant?.price || product.price;
+  const currentOriginalPrice = selectedVariant?.originalPrice || product.originalPrice;
+  const currentStock = selectedVariant?.stock || product.stock;
+  const currentDiscount =
+    currentOriginalPrice && currentOriginalPrice > currentPrice
+      ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
+      : 0;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6 sm:py-8">
@@ -113,9 +164,9 @@ const ProductDetailPage = () => {
               ) : (
                 <div className="text-8xl">📦</div>
               )}
-              {discount > 0 && (
+              {currentDiscount > 0 && (
                 <span className="absolute top-4 left-4 bg-gradient-to-r from-red-500 to-orange-500 text-white text-sm font-bold px-3 py-1.5 rounded-full shadow-lg">
-                  {discount}% OFF
+                  {currentDiscount}% OFF
                 </span>
               )}
             </div>
@@ -161,11 +212,11 @@ const ProductDetailPage = () => {
 
             <div className="flex items-end gap-3 mb-5">
               <span className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {formatPrice(product.price)}
+                {formatPrice(currentPrice)}
               </span>
-              {product.originalPrice && product.originalPrice > product.price && (
+              {currentOriginalPrice && currentOriginalPrice > currentPrice && (
                 <span className="text-lg text-gray-400 line-through mb-1">
-                  {formatPrice(product.originalPrice)}
+                  {formatPrice(currentOriginalPrice)}
                 </span>
               )}
             </div>
@@ -175,14 +226,62 @@ const ProductDetailPage = () => {
             )}
 
             <div className="flex items-center gap-2 mb-6">
-              {product.stock > 0 ? (
+              {currentStock > 0 ? (
                 <span className="inline-flex items-center gap-1.5 text-green-600 text-sm font-medium">
-                  <Check size={16} /> In stock ({product.stock} available)
+                  <Check size={16} /> In stock ({currentStock} available)
                 </span>
               ) : (
                 <span className="text-red-500 text-sm font-medium">Out of stock</span>
               )}
             </div>
+
+            {/* Color Selection */}
+            {product.availableColors && product.availableColors.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Color: {typeof selectedColor === 'string' ? selectedColor : selectedColor?.name}</h3>
+                <div className="flex flex-wrap gap-3">
+                  {product.availableColors.map((color, i) => {
+                    const colorName = typeof color === 'string' ? color : color.name;
+                    const colorCode = typeof color === 'string' ? '#000000' : color.code;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedColor(typeof color === 'string' ? color : color)}
+                        className={`w-10 h-10 rounded-full border-2 transition-all ${
+                          (typeof selectedColor === 'string' ? selectedColor : selectedColor?.name) === colorName
+                            ? 'border-blue-600 ring-2 ring-blue-200 scale-110'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        style={{ backgroundColor: colorCode }}
+                        title={colorName}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Size Selection */}
+            {product.availableSizes && product.availableSizes.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Size: {selectedSize}</h3>
+                <div className="flex flex-wrap gap-3">
+                  {product.availableSizes.map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-4 py-2 rounded-lg border-2 font-medium transition-all ${
+                        selectedSize === size
+                          ? 'border-blue-600 bg-blue-50 text-blue-600'
+                          : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Quantity */}
             <div className="flex items-center gap-4 mb-6">
@@ -228,7 +327,7 @@ const ProductDetailPage = () => {
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-3">
               {[
-                { icon: Truck, label: 'Free shipping over $100' },
+                { icon: Truck, label: 'Free shipping over ₹100' },
                 { icon: ShieldCheck, label: 'Secure payment' },
                 { icon: RefreshCw, label: 'Easy returns' },
               ].map(({ icon: Icon, label }) => (

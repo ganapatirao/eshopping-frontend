@@ -5,7 +5,6 @@ import {
   Package,
   Layers,
   ShoppingBag,
-  DollarSign,
   Plus,
   Pencil,
   Trash2,
@@ -17,6 +16,12 @@ import {
   Settings,
   AlertCircle,
   CheckCircle,
+  Eye,
+  User,
+  CreditCard,
+  Calendar,
+  Box,
+  MapPin as MapPinIcon,
 } from 'lucide-react';
 import { productsAPI, categoriesAPI, ordersAPI, layoutAPI, seedAPI, imageAPI, usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +41,9 @@ const emptyProduct = {
   reviewCount: 0,
   isFeatured: false,
   isActive: true,
+  availableColors: [],
+  availableSizes: [],
+  variants: [],
 };
 
 const emptyCategory = {
@@ -60,6 +68,8 @@ const AdminDashboard = () => {
   const [categoryModal, setCategoryModal] = useState({ open: false, data: null });
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [variantModal, setVariantModal] = useState({ open: false, data: null, index: null });
+  const [dragOverColor, setDragOverColor] = useState(null);
 
   const [headerData, setHeaderData] = useState(null);
   const [footerData, setFooterData] = useState(null);
@@ -80,6 +90,12 @@ const AdminDashboard = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterRole, setFilterRole] = useState('all');
   const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null });
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderStatusFilter, setOrderStatusFilter] = useState('All');
+  const [orderDateFrom, setOrderDateFrom] = useState('');
+  const [orderDateTo, setOrderDateTo] = useState('');
+  const [orderIdSearch, setOrderIdSearch] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -120,9 +136,37 @@ const AdminDashboard = () => {
 
   const categoryName = (id) => categories.find((c) => c.id === id)?.name || '—';
 
+  const formatDateTime = (d) =>
+    new Date(d).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+  const handleViewOrder = (order) => {
+    setSelectedOrder(order);
+    setShowOrderModal(true);
+  };
+
   const revenue = orders
     .filter((o) => o.status !== 'Cancelled')
     .reduce((sum, o) => sum + o.total, 0);
+
+  const orderStats = {
+    total: orders.length,
+    pending: orders.filter(o => o.status === 'Pending').length,
+    pendingTotal: orders.filter(o => o.status === 'Pending').reduce((sum, o) => sum + o.total, 0),
+    processing: orders.filter(o => o.status === 'Processing').length,
+    processingTotal: orders.filter(o => o.status === 'Processing').reduce((sum, o) => sum + o.total, 0),
+    shipped: orders.filter(o => o.status === 'Shipped').length,
+    shippedTotal: orders.filter(o => o.status === 'Shipped').reduce((sum, o) => sum + o.total, 0),
+    delivered: orders.filter(o => o.status === 'Delivered').length,
+    deliveredTotal: orders.filter(o => o.status === 'Delivered').reduce((sum, o) => sum + o.total, 0),
+    cancelled: orders.filter(o => o.status === 'Cancelled').length,
+    cancelledTotal: orders.filter(o => o.status === 'Cancelled').reduce((sum, o) => sum + o.total, 0),
+  };
 
   // ---- Product CRUD ----
   const openProduct = (data) => {
@@ -131,9 +175,54 @@ const AdminDashboard = () => {
     setProductImagePreview(data?.imageUrl || null);
   };
 
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const blobUrlToBase64 = async (blobUrl) => {
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      return await fileToBase64(blob);
+    } catch (error) {
+      console.error('Error converting blob URL to base64:', error);
+      return null;
+    }
+  };
+
   const saveProduct = async (e) => {
     e.preventDefault();
     setSaving(true);
+
+    // Convert color images from blob URLs to base64
+    const processedColors = await Promise.all(
+      (form.availableColors || []).map(async (color) => {
+        const processedImages = await Promise.all(
+          (color.images || []).map(async (img) => {
+            // If it's already a base64 string, return as is
+            if (img.startsWith('data:')) {
+              return img;
+            }
+            // If it's a blob URL, convert to base64
+            if (img.startsWith('blob:')) {
+              return await blobUrlToBase64(img);
+            }
+            // If it's a regular URL, keep as is
+            return img;
+          })
+        );
+        return {
+          ...color,
+          images: processedImages.filter(img => img !== null)
+        };
+      })
+    );
+
     const payload = {
       ...form,
       price: parseFloat(form.price) || 0,
@@ -141,6 +230,9 @@ const AdminDashboard = () => {
       stock: parseInt(form.stock) || 0,
       rating: parseFloat(form.rating) || 0,
       reviewCount: parseInt(form.reviewCount) || 0,
+      availableColors: processedColors,
+      availableSizes: form.availableSizes || [],
+      variants: form.variants || [],
     };
     try {
       if (productModal.data?.id) {
@@ -156,6 +248,84 @@ const AdminDashboard = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const openVariant = (index = null) => {
+    const currentVariants = form.variants || [];
+    if (index !== null) {
+      const variant = currentVariants[index];
+      setVariantModal({ open: true, data: { ...variant }, index });
+    } else {
+      setVariantModal({ open: true, data: { color: '', colorCode: '#000000', size: '', price: form.price || 0, originalPrice: form.originalPrice || null, stock: 0, imageUrls: [], isActive: true }, index: null });
+    }
+  };
+
+  const saveVariant = (e) => {
+    e.preventDefault();
+    const currentVariants = [...(form.variants || [])];
+    if (variantModal.index !== null) {
+      currentVariants[variantModal.index] = variantModal.data;
+    } else {
+      currentVariants.push(variantModal.data);
+    }
+    setForm({ ...form, variants: currentVariants });
+    setVariantModal({ open: false, data: null, index: null });
+  };
+
+  const deleteVariant = (index) => {
+    const currentVariants = form.variants.filter((_, i) => i !== index);
+    setForm({ ...form, variants: currentVariants });
+  };
+
+  const addColor = () => {
+    const color = prompt('Enter color name:');
+    const colorCode = prompt('Enter color hex code (e.g., #FF0000):');
+    if (color && colorCode) {
+      setForm({ ...form, availableColors: [...(form.availableColors || []), { name: color, code: colorCode, images: [] }] });
+    }
+  };
+
+  const removeColor = (index) => {
+    setForm({ ...form, availableColors: form.availableColors.filter((_, i) => i !== index) });
+  };
+
+  const handleColorImageUpload = (colorIndex, files) => {
+    const newImages = Array.from(files).map(file => URL.createObjectURL(file));
+    const updatedColors = [...form.availableColors];
+    updatedColors[colorIndex] = {
+      ...updatedColors[colorIndex],
+      images: [...(updatedColors[colorIndex].images || []), ...newImages]
+    };
+    setForm({ ...form, availableColors: updatedColors });
+  };
+
+  const handleColorImageDrop = (e, colorIndex) => {
+    e.preventDefault();
+    setDragOverColor(null);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleColorImageUpload(colorIndex, files);
+    }
+  };
+
+  const removeColorImage = (colorIndex, imageIndex) => {
+    const updatedColors = [...form.availableColors];
+    updatedColors[colorIndex] = {
+      ...updatedColors[colorIndex],
+      images: updatedColors[colorIndex].images.filter((_, i) => i !== imageIndex)
+    };
+    setForm({ ...form, availableColors: updatedColors });
+  };
+
+  const addSize = () => {
+    const size = prompt('Enter size (e.g., S, M, L, XL):');
+    if (size) {
+      setForm({ ...form, availableSizes: [...(form.availableSizes || []), size] });
+    }
+  };
+
+  const removeSize = (index) => {
+    setForm({ ...form, availableSizes: form.availableSizes.filter((_, i) => i !== index) });
   };
 
   const deleteProduct = async (id) => {
@@ -327,11 +497,26 @@ const AdminDashboard = () => {
     c.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredOrders = orders.filter(o => 
-    o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.status?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = orders.filter(o => {
+    // Apply status filter
+    if (orderStatusFilter !== 'All' && o.status !== orderStatusFilter) return false;
+
+    // Apply order ID search
+    if (orderIdSearch && !o.id.toLowerCase().includes(orderIdSearch.toLowerCase())) return false;
+
+    // Apply date range filter
+    if (orderDateFrom || orderDateTo) {
+      const orderDate = new Date(o.createdAt);
+      if (orderDateFrom && orderDate < new Date(orderDateFrom)) return false;
+      if (orderDateTo && orderDate > new Date(orderDateTo)) return false;
+    }
+
+    // Apply search term (customer name/email)
+    if (searchTerm && !o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !o.email?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+
+    return true;
+  });
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = 
@@ -918,54 +1103,335 @@ const AdminDashboard = () => {
 
         {/* Orders */}
         {tab === 'orders' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Orders ({filteredOrders.length})</h2>
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Search orders..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
+          <div className="space-y-6">
+            {/* Status Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+                <p className="text-xs font-semibold text-amber-700 mb-1">Pending</p>
+                <p className="text-2xl font-bold text-gray-800">{orderStats.pending}</p>
+                <p className="text-sm text-amber-600">{formatPrice(orderStats.pendingTotal)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                <p className="text-xs font-semibold text-blue-700 mb-1">Processing</p>
+                <p className="text-2xl font-bold text-gray-800">{orderStats.processing}</p>
+                <p className="text-sm text-blue-600">{formatPrice(orderStats.processingTotal)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-100">
+                <p className="text-xs font-semibold text-purple-700 mb-1">Shipped</p>
+                <p className="text-2xl font-bold text-gray-800">{orderStats.shipped}</p>
+                <p className="text-sm text-purple-600">{formatPrice(orderStats.shippedTotal)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                <p className="text-xs font-semibold text-green-700 mb-1">Delivered</p>
+                <p className="text-2xl font-bold text-gray-800">{orderStats.delivered}</p>
+                <p className="text-sm text-green-600">{formatPrice(orderStats.deliveredTotal)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 border border-red-100">
+                <p className="text-xs font-semibold text-red-700 mb-1">Cancelled</p>
+                <p className="text-2xl font-bold text-gray-800">{orderStats.cancelled}</p>
+                <p className="text-sm text-red-600">{formatPrice(orderStats.cancelledTotal)}</p>
+              </div>
             </div>
-            {filteredOrders.length === 0 ? (
-              <p className="text-gray-500 text-center py-10">No orders found.</p>
-            ) : (
-              <div className="space-y-4">
-                {filteredOrders.map((o) => (
-                  <div key={o.id} className="border border-gray-100 rounded-xl p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                      <div>
-                        <p className="font-bold text-gray-800">#ORD-{o.id.slice(0, 8).toUpperCase()}</p>
-                        <p className="text-xs text-gray-500">
-                          {o.customerName} · {o.email} · {new Date(o.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-blue-600">{formatPrice(o.total)}</span>
-                        <select
-                          value={o.status}
-                          onChange={(e) => updateOrderStatus(o.id, e.target.value)}
-                          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-500"
-                        >
-                          {ORDER_STATUSES.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {o.items.map((it, i) => (
-                        <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-lg">
-                          {it.name} ×{it.quantity}
-                        </span>
+
+            {/* Orders Table */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-800">Orders ({filteredOrders.length})</h2>
+                <p className="text-sm text-gray-500">Total: {formatPrice(filteredOrders.reduce((sum, o) => sum + o.total, 0))}</p>
+              </div>
+
+              {/* Advanced Filters */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Order ID</label>
+                    <input
+                      type="text"
+                      placeholder="Search by order ID..."
+                      value={orderIdSearch}
+                      onChange={(e) => setOrderIdSearch(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={orderStatusFilter}
+                      onChange={(e) => setOrderStatusFilter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                    >
+                      <option value="All">All Status</option>
+                      {ORDER_STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
+                    <input
+                      type="date"
+                      value={orderDateFrom}
+                      onChange={(e) => setOrderDateFrom(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
+                    <input
+                      type="date"
+                      value={orderDateTo}
+                      onChange={(e) => setOrderDateTo(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+                </div>
+                {(orderStatusFilter !== 'All' || orderDateFrom || orderDateTo || orderIdSearch) && (
+                  <button
+                    onClick={() => {
+                      setOrderStatusFilter('All');
+                      setOrderDateFrom('');
+                      setOrderDateTo('');
+                      setOrderIdSearch('');
+                    }}
+                    className="mt-3 text-sm text-purple-600 hover:text-purple-700 font-medium"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+
+              {filteredOrders.length === 0 ? (
+                <p className="text-gray-500 text-center py-10">No orders found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Order ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Customer</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredOrders.map((o) => (
+                        <tr key={o.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <span className="font-bold text-gray-800 text-sm">#ORD-{o.id.slice(0, 8).toUpperCase()}</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{o.customerName || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{o.email || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{new Date(o.createdAt).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 font-bold text-blue-600 text-sm">{formatPrice(o.total)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                              o.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
+                              o.status === 'Processing' ? 'bg-blue-100 text-blue-700' :
+                              o.status === 'Shipped' ? 'bg-indigo-100 text-indigo-700' :
+                              o.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {o.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleViewOrder(o)}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors text-xs font-medium"
+                              >
+                                <Eye size={12} /> View
+                              </button>
+                              <select
+                                value={o.status}
+                                onChange={(e) => updateOrderStatus(o.id, e.target.value)}
+                                className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-purple-500"
+                              >
+                                {ORDER_STATUSES.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Order Details Modal */}
+        {showOrderModal && selectedOrder && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold flex items-center gap-3">
+                      <Box size={28} /> Order Details
+                    </h2>
+                    <p className="text-purple-100 mt-1">Order #ORD-{selectedOrder.id.slice(0, 8).toUpperCase()}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowOrderModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Order Status */}
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
+                        selectedOrder.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
+                        selectedOrder.status === 'Processing' ? 'bg-blue-100 text-blue-700' :
+                        selectedOrder.status === 'Shipped' ? 'bg-indigo-100 text-indigo-700' :
+                        selectedOrder.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {selectedOrder.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Calendar size={16} />
+                      <span className="text-sm">{formatDateTime(selectedOrder.createdAt)}</span>
                     </div>
                   </div>
-                ))}
+                </div>
+
+                {/* Customer Information */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <User size={18} className="text-purple-600" /> Customer Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Name</p>
+                      <p className="font-medium text-gray-800">{selectedOrder.customerName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Email</p>
+                      <p className="font-medium text-gray-800">{selectedOrder.email || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Phone</p>
+                      <p className="font-medium text-gray-800">{selectedOrder.customerPhone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Payment Method</p>
+                      <p className="font-medium text-gray-800 flex items-center gap-2">
+                        <CreditCard size={16} /> {selectedOrder.paymentMethod || 'Credit Card'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Shipping Address */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <MapPinIcon size={18} className="text-purple-600" /> Shipping Address
+                  </h3>
+                  {selectedOrder.shippingAddress ? (
+                    <div className="text-gray-700">
+                      <p className="font-medium">{selectedOrder.shippingAddress.fullName || selectedOrder.customerName}</p>
+                      <p className="text-sm">{selectedOrder.shippingAddress.addressLine1}</p>
+                      {selectedOrder.shippingAddress.addressLine2 && (
+                        <p className="text-sm">{selectedOrder.shippingAddress.addressLine2}</p>
+                      )}
+                      <p className="text-sm">
+                        {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.zipCode}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">No shipping address provided</p>
+                  )}
+                </div>
+
+                {/* Order Items */}
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <h3 className="font-semibold text-gray-800 p-4 border-b border-gray-200 flex items-center gap-2">
+                    <Package size={18} className="text-purple-600" /> Order Items
+                  </h3>
+                  <div className="divide-y divide-gray-100">
+                    {selectedOrder.items?.map((item, index) => (
+                      <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start gap-4">
+                          <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-3xl">📦</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-800">{item.name}</p>
+                            {item.selectedVariant && (
+                              <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                                <span className="bg-gray-200 px-2 py-0.5 rounded">{item.selectedVariant.color}</span>
+                                <span className="bg-gray-200 px-2 py-0.5 rounded">{item.selectedVariant.size}</span>
+                              </div>
+                            )}
+                            <p className="text-sm text-gray-500 mt-1">Qty: {item.quantity} × {formatPrice(item.price)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-purple-600">{formatPrice(item.price * item.quantity)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pricing Breakdown */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <CreditCard size={18} className="text-purple-600" /> Pricing Breakdown
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-gray-700">
+                      <span>Subtotal</span>
+                      <span className="font-medium">{formatPrice(selectedOrder.subtotal || selectedOrder.total)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-700">
+                      <span>Shipping</span>
+                      <span className="font-medium">{formatPrice(selectedOrder.shipping || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-700">
+                      <span>Tax</span>
+                      <span className="font-medium">{formatPrice(selectedOrder.tax || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-700 pt-2 border-t border-green-200">
+                      <span className="font-semibold text-lg">Total</span>
+                      <span className="font-bold text-xl text-purple-600">{formatPrice(selectedOrder.total)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+
+              {/* Modal Footer */}
+              <div className="bg-gray-50 p-4 border-t border-gray-200">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowOrderModal(false)}
+                    className="px-6 py-2.5 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1720,8 +2186,321 @@ const AdminDashboard = () => {
                 <span className="font-medium">Active</span>
               </label>
             </div>
+
+            {/* Colors Section */}
+            <div className="bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-4 border border-pink-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Available Colors</h3>
+                <button type="button" onClick={addColor} className="text-xs bg-pink-500 text-white px-3 py-1.5 rounded-lg hover:bg-pink-600 transition-colors">
+                  + Add Color
+                </button>
+              </div>
+              {/* Excel-like table for colors */}
+              <div className="bg-white rounded-lg border border-pink-200 overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-pink-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Color</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Code</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Images</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.availableColors?.map((color, colorIndex) => (
+                      <tr key={colorIndex} className="border-t border-pink-100 hover:bg-pink-50/50">
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={color.name}
+                            onChange={(e) => {
+                              const updatedColors = [...form.availableColors];
+                              updatedColors[colorIndex] = { ...updatedColors[colorIndex], name: e.target.value };
+                              setForm({ ...form, availableColors: updatedColors });
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={color.code || '#000000'}
+                              onChange={(e) => {
+                                const updatedColors = [...form.availableColors];
+                                updatedColors[colorIndex] = { ...updatedColors[colorIndex], code: e.target.value };
+                                setForm({ ...form, availableColors: updatedColors });
+                              }}
+                              className="w-8 h-8 rounded cursor-pointer border-0"
+                            />
+                            <input
+                              type="text"
+                              value={color.code || ''}
+                              onChange={(e) => {
+                                const updatedColors = [...form.availableColors];
+                                updatedColors[colorIndex] = { ...updatedColors[colorIndex], code: e.target.value };
+                                setForm({ ...form, availableColors: updatedColors });
+                              }}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm"
+                              placeholder="#000000"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            {/* Drag-drop zone for color images */}
+                            <div
+                              className={`w-8 h-8 border-2 border-dashed rounded flex items-center justify-center cursor-pointer transition-colors ${
+                                dragOverColor === colorIndex ? 'border-pink-400 bg-pink-50' : 'border-gray-300 hover:border-pink-300'
+                              }`}
+                              onDragOver={(e) => { e.preventDefault(); setDragOverColor(colorIndex); }}
+                              onDragLeave={() => setDragOverColor(null)}
+                              onDrop={(e) => handleColorImageDrop(e, colorIndex)}
+                              title="Click to upload or drag images"
+                            >
+                              <input
+                                type="file"
+                                id={`color-image-${colorIndex}`}
+                                className="hidden"
+                                multiple
+                                accept="image/*"
+                                onChange={(e) => handleColorImageUpload(colorIndex, e.target.files)}
+                              />
+                              <label htmlFor={`color-image-${colorIndex}`} className="cursor-pointer w-full h-full flex items-center justify-center">
+                                <Plus size={14} className="text-gray-400" />
+                              </label>
+                            </div>
+                            {/* Color images count */}
+                            {color.images && color.images.length > 0 && (
+                              <span className="text-xs text-gray-500">{color.images.length} images</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <button
+                            type="button"
+                            onClick={() => removeColor(colorIndex)}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!form.availableColors || form.availableColors.length === 0) && (
+                      <tr>
+                        <td colSpan="4" className="px-4 py-4 text-center text-sm text-gray-500">
+                          No colors added yet. Click "+ Add Color" to add one.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {/* Color images preview section */}
+              {form.availableColors?.some(c => c.images && c.images.length > 0) && (
+                <div className="mt-3 space-y-2">
+                  {form.availableColors.map((color, colorIndex) => (
+                    color.images && color.images.length > 0 && (
+                      <div key={colorIndex} className="bg-white rounded-lg border border-pink-200 p-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: color.code }}></div>
+                          <span className="text-xs font-medium text-gray-600">{color.name} Images</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {color.images.map((img, imgIndex) => (
+                            <div key={imgIndex} className="relative group">
+                              <img src={img} alt={`${color.name} ${imgIndex + 1}`} className="w-12 h-12 object-cover rounded border border-gray-200" />
+                              <button
+                                type="button"
+                                onClick={() => removeColorImage(colorIndex, imgIndex)}
+                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sizes Section */}
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-4 border border-indigo-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Available Sizes</h3>
+                <button type="button" onClick={addSize} className="text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-600 transition-colors">
+                  + Add Size
+                </button>
+              </div>
+              {/* Excel-like table for sizes */}
+              <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-indigo-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Size</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.availableSizes?.map((size, index) => (
+                      <tr key={index} className="border-t border-indigo-100 hover:bg-indigo-50/50">
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={size}
+                            onChange={(e) => {
+                              const updatedSizes = [...form.availableSizes];
+                              updatedSizes[index] = e.target.value;
+                              setForm({ ...form, availableSizes: updatedSizes });
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <button
+                            type="button"
+                            onClick={() => removeSize(index)}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!form.availableSizes || form.availableSizes.length === 0) && (
+                      <tr>
+                        <td colSpan="2" className="px-4 py-4 text-center text-sm text-gray-500">
+                          No sizes added yet. Click "+ Add Size" to add one.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Variants Section */}
+            <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Product Variants (Color + Size)</h3>
+                <button type="button" onClick={() => openVariant()} className="text-xs bg-purple-500 text-white px-3 py-1.5 rounded-lg hover:bg-purple-600 transition-colors">
+                  + Add Variant
+                </button>
+              </div>
+              <div className="space-y-2">
+                {form.variants?.map((variant, index) => (
+                  <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-purple-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-gray-200" style={{ backgroundColor: variant.colorCode }}></div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{variant.color} - {variant.size}</p>
+                        <p className="text-xs text-gray-500">₹{variant.price} | Stock: {variant.stock}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => openVariant(index)} className="text-blue-500 hover:text-blue-600">
+                        <Pencil size={16} />
+                      </button>
+                      <button type="button" onClick={() => deleteVariant(index)} className="text-red-500 hover:text-red-600">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl font-semibold disabled:opacity-60 hover:shadow-lg transition-all">
               {saving ? 'Saving...' : 'Save Product'}
+            </button>
+          </form>
+        </Modal>
+      )}
+
+      {/* Variant Modal */}
+      {variantModal.open && (
+        <Modal title={variantModal.index !== null ? 'Edit Variant' : 'Add Variant'} onClose={() => setVariantModal({ open: false, data: null, index: null })}>
+          <form onSubmit={saveVariant} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Color Name</label>
+                <input
+                  type="text"
+                  value={variantModal.data?.color || ''}
+                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, color: e.target.value } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="e.g., Red"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Color Code</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={variantModal.data?.colorCode || '#000000'}
+                    onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, colorCode: e.target.value } })}
+                    className="w-12 h-10 rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={variantModal.data?.colorCode || '#000000'}
+                    onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, colorCode: e.target.value } })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="#FF0000"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
+              <input
+                type="text"
+                value={variantModal.data?.size || ''}
+                onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, size: e.target.value } })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                placeholder="e.g., S, M, L, XL"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                <input
+                  type="number"
+                  value={variantModal.data?.price || 0}
+                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, price: parseFloat(e.target.value) || 0 } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Original Price</label>
+                <input
+                  type="number"
+                  value={variantModal.data?.originalPrice || ''}
+                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, originalPrice: e.target.value ? parseFloat(e.target.value) : null } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+              <input
+                type="number"
+                value={variantModal.data?.stock || 0}
+                onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, stock: parseInt(e.target.value) || 0 } })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                required
+              />
+            </div>
+            <button type="submit" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all">
+              Save Variant
             </button>
           </form>
         </Modal>

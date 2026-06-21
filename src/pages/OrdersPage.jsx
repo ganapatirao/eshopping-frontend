@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Package, ShoppingBag, Clock, CheckCircle, Truck, XCircle, MapPin, Filter, X } from 'lucide-react';
+import { Package, ShoppingBag, Clock, CheckCircle, Truck, XCircle, MapPin, Filter, X, Eye, User, CreditCard, Calendar, Box, MapPin as MapPinIcon } from 'lucide-react';
 import { ordersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../utils/format';
@@ -23,6 +23,8 @@ const OrdersPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -86,6 +88,20 @@ const OrdersPage = () => {
 
   const formatDate = (d) =>
     new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+  const formatDateTime = (d) =>
+    new Date(d).toLocaleString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+  const handleViewOrder = (order) => {
+    setSelectedOrder(order);
+    setShowOrderModal(true);
+  };
 
   const clearFilters = () => {
     setStatusFilter('All');
@@ -275,6 +291,12 @@ const OrdersPage = () => {
                         <p className="text-xs text-gray-500 mt-1">{formatDate(order.createdAt)}</p>
                       </div>
                       <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleViewOrder(order)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                        >
+                          <Eye size={14} /> View Details
+                        </button>
                         <span
                           className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full ${sInfo.cls}`}
                         >
@@ -316,6 +338,185 @@ const OrdersPage = () => {
           </div>
         )}
       </div>
+
+      {/* Order Details Modal */}
+      {showOrderModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-3">
+                    <Box size={28} /> Order Details
+                  </h2>
+                  <p className="text-blue-100 mt-1">Order #ORD-{selectedOrder.id.slice(0, 8).toUpperCase()}</p>
+                </div>
+                <button
+                  onClick={() => setShowOrderModal(false)}
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Order Status */}
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {(() => {
+                      const sInfo = statusStyles[selectedOrder.status] || statusStyles.Pending;
+                      const StatusIcon = sInfo.icon;
+                      return (
+                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${sInfo.cls}`}>
+                          <StatusIcon size={18} />
+                          <span className="font-semibold">{selectedOrder.status}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Calendar size={16} />
+                    <span className="text-sm">{formatDateTime(selectedOrder.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Information */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <User size={18} className="text-blue-600" /> Customer Information
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Name</p>
+                    <p className="font-medium text-gray-800">{selectedOrder.customerName || user?.fullName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="font-medium text-gray-800">{selectedOrder.customerEmail || user?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Phone</p>
+                    <p className="font-medium text-gray-800">{selectedOrder.customerPhone || user?.phoneNumber || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Payment Method</p>
+                    <p className="font-medium text-gray-800 flex items-center gap-2">
+                      <CreditCard size={16} /> {selectedOrder.paymentMethod || 'Credit Card'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Shipping Address */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <MapPinIcon size={18} className="text-blue-600" /> Shipping Address
+                </h3>
+                {selectedOrder.shippingAddress ? (
+                  <div className="text-gray-700">
+                    <p className="font-medium">{selectedOrder.shippingAddress.fullName || selectedOrder.customerName}</p>
+                    <p className="text-sm">{selectedOrder.shippingAddress.addressLine1}</p>
+                    {selectedOrder.shippingAddress.addressLine2 && (
+                      <p className="text-sm">{selectedOrder.shippingAddress.addressLine2}</p>
+                    )}
+                    <p className="text-sm">
+                      {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.zipCode}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No shipping address provided</p>
+                )}
+              </div>
+
+              {/* Order Items */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <h3 className="font-semibold text-gray-800 p-4 border-b border-gray-200 flex items-center gap-2">
+                  <Package size={18} className="text-blue-600" /> Order Items
+                </h3>
+                <div className="divide-y divide-gray-100">
+                  {selectedOrder.items?.map((item, index) => (
+                    <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start gap-4">
+                        <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-3xl">📦</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-800">{item.name}</p>
+                          {item.selectedVariant && (
+                            <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                              <span className="bg-gray-200 px-2 py-0.5 rounded">{item.selectedVariant.color}</span>
+                              <span className="bg-gray-200 px-2 py-0.5 rounded">{item.selectedVariant.size}</span>
+                            </div>
+                          )}
+                          <p className="text-sm text-gray-500 mt-1">Qty: {item.quantity} × {formatPrice(item.price)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-blue-600">{formatPrice(item.price * item.quantity)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pricing Breakdown */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <CreditCard size={18} className="text-blue-600" /> Pricing Breakdown
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-gray-700">
+                    <span>Subtotal</span>
+                    <span className="font-medium">{formatPrice(selectedOrder.subtotal || selectedOrder.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>Shipping</span>
+                    <span className="font-medium">{formatPrice(selectedOrder.shipping || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>Tax</span>
+                    <span className="font-medium">{formatPrice(selectedOrder.tax || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700 pt-2 border-t border-green-200">
+                    <span className="font-semibold text-lg">Total</span>
+                    <span className="font-bold text-xl text-blue-600">{formatPrice(selectedOrder.total)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 p-4 border-t border-gray-200">
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowOrderModal(false)}
+                  className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setShowOrderModal(false);
+                    navigate('/shopping');
+                  }}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Shop More
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

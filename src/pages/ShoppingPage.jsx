@@ -428,65 +428,96 @@ const ShoppingPage = () => {
                   <option value="rating">Top Rated</option>
                 </select>
               </div>
-              {filteredProducts.map((product, index) => (
-                <div key={product.id}>
-                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full">
-                    <Link to={`/product/${product.id}`} className="block relative active:scale-95 transition-transform">
-                      <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center relative overflow-hidden">
-                        {product.imageUrl ? (
-                          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <div className="text-6xl">📦</div>
-                        )}
-                        {product.isFeatured && (
-                          <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                            Featured
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                    <div className="p-3 sm:p-4 flex flex-col grow">
-                      <Link to={`/product/${product.id}`}>
-                        <h3 className="font-semibold text-sm sm:text-base text-gray-800 mb-1 line-clamp-2 hover:text-blue-600 transition-colors">{product.name}</h3>
-                      </Link>
-                      <p className="hidden sm:block text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
-                      <div className="flex items-end justify-between gap-1 mb-3 flex-wrap mt-auto">
-                        <div>
-                          <span className="text-lg sm:text-2xl font-bold text-blue-600">{formatPrice(product.price)}</span>
-                          {product.originalPrice && (
-                            <span className="text-xs sm:text-sm text-gray-500 line-through ml-1.5">{formatPrice(product.originalPrice)}</span>
+              {filteredProducts.map((product, index) => {
+                // Get first color's images or default product images
+                const colorImages = product.availableColors?.[0]?.images || [];
+                const displayImages = colorImages.length > 0 ? colorImages : (product.imageUrls || (product.imageUrl ? [product.imageUrl] : []));
+                const displayImage = displayImages[0];
+
+                return (
+                  <React.Fragment key={product.id}>
+                    <div>
+                      <div className="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full">
+                        <Link to={`/product/${product.id}`} className="block relative active:scale-95 transition-transform">
+                          <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center relative overflow-hidden">
+                            {displayImage ? (
+                              <img src={displayImage} alt={product.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                              <div className="text-6xl">📦</div>
+                            )}
+                            {product.isFeatured && (
+                              <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                Featured
+                              </span>
+                            )}
+                            {/* Color indicators */}
+                            {product.availableColors && product.availableColors.length > 0 && (
+                              <div className="absolute bottom-2 left-2 flex gap-1">
+                                {product.availableColors.slice(0, 3).map((color, i) => (
+                                  <div key={i} className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: color.code || (typeof color === 'string' ? '#000000' : color.code) }}></div>
+                                ))}
+                                {product.availableColors.length > 3 && (
+                                  <span className="text-xs text-gray-600 bg-white/80 px-1.5 py-0.5 rounded-full">+{product.availableColors.length - 3}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+                        <div className="p-3 sm:p-4 flex flex-col grow">
+                          <Link to={`/product/${product.id}`}>
+                            <h3 className="font-semibold text-sm sm:text-base text-gray-800 mb-1 line-clamp-2 hover:text-blue-600 transition-colors">{product.name}</h3>
+                          </Link>
+                          <p className="hidden sm:block text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
+                          {/* Size indicators */}
+                          {product.availableSizes && product.availableSizes.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {product.availableSizes.slice(0, 4).map((size, i) => (
+                                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{size}</span>
+                              ))}
+                              {product.availableSizes.length > 4 && (
+                                <span className="text-xs text-gray-500">+{product.availableSizes.length - 4}</span>
+                              )}
+                            </div>
                           )}
-                        </div>
-                        <div className="flex items-center text-yellow-500 text-sm">
-                          <span>⭐ {product.rating}</span>
-                          <span className="text-gray-500 text-xs ml-1">({product.reviewCount})</span>
+                          <div className="flex items-end justify-between gap-1 mb-3 flex-wrap mt-auto">
+                            <div>
+                              <span className="text-lg sm:text-2xl font-bold text-blue-600">{formatPrice(product.price)}</span>
+                              {product.originalPrice && (
+                                <span className="text-xs sm:text-sm text-gray-500 line-through ml-1.5">{formatPrice(product.originalPrice)}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center text-yellow-500 text-sm">
+                              <span>⭐ {product.rating}</span>
+                              <span className="text-gray-500 text-xs ml-1">({product.reviewCount})</span>
+                            </div>
+                          </div>
+                          <button
+                            className="w-full bg-blue-600 text-white py-2 rounded-xl hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
+                            onClick={() => addToCart(product)}
+                          >
+                            <ShoppingCart size={16} />
+                            <span>Add to Cart</span>
+                          </button>
                         </div>
                       </div>
-                      <button
-                        className="w-full bg-blue-600 text-white py-2 rounded-xl hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
-                        onClick={() => addToCart(product)}
-                      >
-                        <ShoppingCart size={16} />
-                        <span>Add to Cart</span>
-                      </button>
                     </div>
-                  </div>
-                  
-                  {/* Advertisement between products */}
-                  {index === 2 && advertisements.length > 0 && (
-                    <div className="mt-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl p-6 text-center">
-                      <h3 className="text-xl font-bold text-gray-800 mb-2">{advertisements[0].title}</h3>
-                      <p className="text-gray-600 mb-4">{advertisements[0].description}</p>
-                      <Link
-                        to={advertisements[0].link || '#'}
-                        className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-                      >
-                        Learn More
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Advertisement between products */}
+                    {index === 2 && advertisements.length > 0 && (
+                      <div className="mt-6 bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl p-6 text-center">
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">{advertisements[0].title}</h3>
+                        <p className="text-gray-600 mb-4">{advertisements[0].description}</p>
+                        <Link
+                          to={advertisements[0].link || '#'}
+                          className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                        >
+                          Learn More
+                        </Link>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
 
             {filteredProducts.length === 0 && (

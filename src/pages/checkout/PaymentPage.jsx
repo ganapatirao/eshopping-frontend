@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, ArrowLeft, ArrowRight, Shield, MessageCircle, DollarSign } from 'lucide-react';
+import { CreditCard, ArrowLeft, ArrowRight, Shield, MessageCircle } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { ordersAPI } from '../../services/api';
