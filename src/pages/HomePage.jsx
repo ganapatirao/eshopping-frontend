@@ -142,10 +142,17 @@ const HomePage = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => addToCart(product)}
+                  onClick={() => {
+                    if (product.variants && product.variants.length > 0) {
+                      window.location.href = `/product/${product.id}`;
+                    } else {
+                      addToCart(product);
+                    }
+                  }}
                   className="mt-auto w-full bg-blue-600 text-white py-2 rounded-xl hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm font-medium"
                 >
-                  <ShoppingCart size={16} /> Add to Cart
+                  <ShoppingCart size={16} />
+                  <span>{product.variants && product.variants.length > 0 ? 'View Details' : 'Add to Cart'}</span>
                 </button>
               </div>
             </div>

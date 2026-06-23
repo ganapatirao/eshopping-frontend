@@ -684,7 +684,7 @@ const ShoppingPage = () => {
                             }}
                           >
                             <ShoppingCart size={16} />
-                            <span>{product.variants && product.variants.length > 0 ? 'Select Options' : 'Add to Cart'}</span>
+                            <span>{product.variants && product.variants.length > 0 ? 'View Details' : 'Add to Cart'}</span>
                           </button>
                         </div>
                       </div>
