@@ -26,6 +26,7 @@ import {
 import { productsAPI, categoriesAPI, ordersAPI, layoutAPI, seedAPI, imageAPI, usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../utils/format';
+import AdminOverview from '../components/admin/AdminOverview';
 
 const ORDER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
@@ -61,7 +62,7 @@ const emptyCategory = {
 };
 
 const AdminDashboard = () => {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout, unlockAccount, lockedAccounts } = useAuth();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('overview');
@@ -1003,85 +1004,89 @@ const AdminDashboard = () => {
     );
   }
 
-  const stats = [
-    { label: 'Products', value: products.length, icon: Package, cls: 'from-green-500 to-emerald-600', tab: 'products' },
-    { label: 'Categories', value: categories.length, icon: Layers, cls: 'from-blue-500 to-indigo-600', tab: 'categories' },
-    { label: 'Orders', value: orders.length, icon: ShoppingBag, cls: 'from-purple-500 to-violet-600', tab: 'orders' },
-    { label: 'Revenue', value: formatPrice(revenue), icon: TrendingUp, cls: 'from-amber-500 to-orange-600', tab: 'orders' },
-  ];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50">
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
+    <div className="min-h-screen bg-gray-50 py-4 sm:py-8 px-3 sm:px-4">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 mb-6 sm:mb-8 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-3 rounded-2xl shadow-lg">
-              <ShieldCheck className="text-white w-7 h-7" />
+        <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl font-bold shrink-0">
+                <ShieldCheck size={24} className="sm:w-8 sm:h-8" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+                <p className="text-gray-500 text-sm sm:text-base">Welcome back, {user?.fullName || 'Admin'}!</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-                Admin Dashboard
-              </h1>
-              <p className="text-gray-500 text-sm">Welcome, {user?.fullName}</p>
-            </div>
+            <button
+              onClick={() => { logout(); navigate('/'); }}
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm sm:text-base self-start sm:self-auto"
+            >
+              <LogOut size={16} className="sm:w-4 sm:h-4" />
+              <span>Logout</span>
+            </button>
           </div>
-          <button
-            onClick={() => { logout(); navigate('/'); }}
-            className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
-          >
-            <LogOut size={16} /> Logout
-          </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {['overview', 'products', 'categories', 'orders', 'users', 'header', 'footer', 'seeding'].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 sm:px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
-                tab === t
-                  ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg'
-                  : 'bg-white text-gray-700 border border-gray-200 hover:border-purple-300'
-              }`}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
+        <div className="mb-4 sm:mb-6">
+          {/* Desktop Tabs */}
+          <div className="flex gap-2 overflow-x-auto pb-2 pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#a855f7 #f3e8ff' }}>
+            <style>{`
+              .custom-scroll::-webkit-scrollbar { height: 6px; }
+              .custom-scroll::-webkit-scrollbar-track { background: linear-gradient(to right, #f3e8ff, #e9d5ff); border-radius: 10px; }
+              .custom-scroll::-webkit-scrollbar-thumb { background: linear-gradient(to right, #a855f7, #6366f1); border-radius: 10px; }
+              .custom-scroll::-webkit-scrollbar-thumb:hover { background: linear-gradient(to right, #9333ea, #4f46e5); }
+            `}</style>
+            {[
+              { id: 'overview', icon: Package, label: 'Overview', color: 'from-blue-500 to-cyan-500' },
+              { id: 'products', icon: Package, label: 'Products', color: 'from-green-500 to-emerald-500' },
+              { id: 'categories', icon: Layers, label: 'Categories', color: 'from-purple-500 to-pink-500' },
+              { id: 'orders', icon: ShoppingBag, label: 'Orders', color: 'from-orange-500 to-amber-500' },
+              { id: 'users', icon: User, label: 'Users', color: 'from-red-500 to-rose-500' },
+              { id: 'header', icon: Layout, label: 'Header', color: 'from-indigo-500 to-blue-500' },
+              { id: 'footer', icon: Layout, label: 'Footer', color: 'from-teal-500 to-cyan-500' },
+              { id: 'seeding', icon: Database, label: 'Seeding', color: 'from-amber-500 to-orange-500' },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setTab(item.id)}
+                  className={`custom-scroll flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap transition-all shrink-0 border-2 ${
+                    tab === item.id
+                      ? `bg-gradient-to-r ${item.color} text-white shadow-lg transform scale-105`
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-purple-300 hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Overview */}
         {tab === 'overview' && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-            {stats.map(({ label, value, icon: Icon, cls, tab: targetTab }) => (
-              <button
-                key={label}
-                onClick={() => setTab(targetTab)}
-                className={`bg-gradient-to-br ${cls} rounded-2xl shadow-lg p-4 sm:p-6 text-white hover:shadow-xl transition-all cursor-pointer`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/80 text-xs sm:text-sm font-medium mb-1">{label}</p>
-                    <p className="text-2xl sm:text-4xl font-bold">{value}</p>
-                  </div>
-                  <div className="bg-white/20 rounded-2xl p-2 sm:p-3">
-                    <Icon className="w-6 h-6 sm:w-8 sm:h-8" />
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+          <AdminOverview
+            orders={orders}
+            products={products}
+            categories={categories}
+            users={users}
+            onTabChange={setTab}
+          />
         )}
 
         {/* Products */}
         {tab === 'products' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-800">Products ({filteredProducts.length})</h2>
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Products ({filteredProducts.length})</h2>
               <button
                 onClick={() => openProduct(null)}
-                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
+                className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
               >
                 <Plus size={16} /> Add
               </button>
@@ -1092,10 +1097,42 @@ const AdminDashboard = () => {
                 placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
               />
             </div>
-            <div className="overflow-x-auto">
+            {/* Mobile Card Layout */}
+            <div className="grid grid-cols-1 sm:hidden gap-3">
+              {filteredProducts.map((p) => (
+                <div key={p.id} className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                      {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : '📦'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 truncate">{p.name}</h3>
+                      <p className="text-sm text-gray-500">{categoryName(p.categoryId)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="font-semibold text-blue-600">{formatPrice(p.price)}</span>
+                      <span className="text-gray-600">Stock: {p.stock}</span>
+                    </div>
+                    <span className="text-lg">{p.isFeatured ? '⭐' : '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => openProduct(p)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => deleteProduct(p.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop Table Layout */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm min-w-[640px]">
                 <thead>
                   <tr className="text-left text-gray-500 border-b border-gray-100">
@@ -1142,14 +1179,14 @@ const AdminDashboard = () => {
 
         {/* Categories */}
         {tab === 'categories' && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Categories Section */}
-            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-800">Categories ({filteredCategories.length})</h2>
+            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Categories ({filteredCategories.length})</h2>
                 <button
                   onClick={() => openCategory(null)}
-                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
+                  className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
                 >
                   <Plus size={16} /> Add Category
                 </button>
@@ -1160,17 +1197,17 @@ const AdminDashboard = () => {
                   placeholder="Search categories..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {filteredCategories.map((c) => (
-                  <div key={c.id} className="border border-gray-100 rounded-xl p-4 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                  <div key={c.id} className="border border-gray-200 rounded-xl p-3 sm:p-4 flex items-center gap-3 hover:border-purple-300 transition-colors">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
                       {c.imageUrl ? <img src={c.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-800 truncate">{c.name}</p>
+                      <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{c.name}</p>
                       <p className="text-xs text-gray-500">Order: {c.displayOrder}</p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -1187,17 +1224,45 @@ const AdminDashboard = () => {
             </div>
 
             {/* Subcategories Section */}
-            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-800">Subcategories ({subCategories.length})</h2>
+            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Subcategories ({subCategories.length})</h2>
                 <button
                   onClick={() => openSubCategory(null)}
-                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
+                  className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
                 >
                   <Plus size={16} /> Add Subcategory
                 </button>
               </div>
-              <div className="overflow-x-auto">
+              {/* Mobile Card Layout */}
+              <div className="grid grid-cols-1 sm:hidden gap-3">
+                {subCategories.map((sc) => (
+                  <div key={sc.id} className="border border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-colors">
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                        {sc.imageUrl ? <img src={sc.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{sc.name}</p>
+                        <p className="text-xs text-gray-500">Parent: {categoryName(sc.parentCategoryId)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Order: {sc.displayOrder}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openSubCategory(sc)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                          <Pencil size={16} />
+                        </button>
+                        <button onClick={() => deleteSubCategory(sc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop Table Layout */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
@@ -1241,46 +1306,46 @@ const AdminDashboard = () => {
 
         {/* Orders */}
         {tab === 'orders' && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Status Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
-                <p className="text-xs font-semibold text-amber-700 mb-1">Pending</p>
-                <p className="text-2xl font-bold text-gray-800">{orderStats.pending}</p>
-                <p className="text-sm text-amber-600">{formatPrice(orderStats.pendingTotal)}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+              <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
+                <p className="text-xs font-semibold text-amber-100 mb-1">Pending</p>
+                <p className="text-xl sm:text-2xl font-bold">{orderStats.pending}</p>
+                <p className="text-xs sm:text-sm text-amber-100">{formatPrice(orderStats.pendingTotal)}</p>
               </div>
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
-                <p className="text-xs font-semibold text-blue-700 mb-1">Processing</p>
-                <p className="text-2xl font-bold text-gray-800">{orderStats.processing}</p>
-                <p className="text-sm text-blue-600">{formatPrice(orderStats.processingTotal)}</p>
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
+                <p className="text-xs font-semibold text-blue-100 mb-1">Processing</p>
+                <p className="text-xl sm:text-2xl font-bold">{orderStats.processing}</p>
+                <p className="text-xs sm:text-sm text-blue-100">{formatPrice(orderStats.processingTotal)}</p>
               </div>
-              <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-100">
-                <p className="text-xs font-semibold text-purple-700 mb-1">Shipped</p>
-                <p className="text-2xl font-bold text-gray-800">{orderStats.shipped}</p>
-                <p className="text-sm text-purple-600">{formatPrice(orderStats.shippedTotal)}</p>
+              <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
+                <p className="text-xs font-semibold text-purple-100 mb-1">Shipped</p>
+                <p className="text-xl sm:text-2xl font-bold">{orderStats.shipped}</p>
+                <p className="text-xs sm:text-sm text-purple-100">{formatPrice(orderStats.shippedTotal)}</p>
               </div>
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
-                <p className="text-xs font-semibold text-green-700 mb-1">Delivered</p>
-                <p className="text-2xl font-bold text-gray-800">{orderStats.delivered}</p>
-                <p className="text-sm text-green-600">{formatPrice(orderStats.deliveredTotal)}</p>
+              <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
+                <p className="text-xs font-semibold text-green-100 mb-1">Delivered</p>
+                <p className="text-xl sm:text-2xl font-bold">{orderStats.delivered}</p>
+                <p className="text-xs sm:text-sm text-green-100">{formatPrice(orderStats.deliveredTotal)}</p>
               </div>
-              <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 border border-red-100">
-                <p className="text-xs font-semibold text-red-700 mb-1">Cancelled</p>
-                <p className="text-2xl font-bold text-gray-800">{orderStats.cancelled}</p>
-                <p className="text-sm text-red-600">{formatPrice(orderStats.cancelledTotal)}</p>
+              <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
+                <p className="text-xs font-semibold text-red-100 mb-1">Cancelled</p>
+                <p className="text-xl sm:text-2xl font-bold">{orderStats.cancelled}</p>
+                <p className="text-xs sm:text-sm text-red-100">{formatPrice(orderStats.cancelledTotal)}</p>
               </div>
             </div>
 
             {/* Orders Table */}
-            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-800">Orders ({filteredOrders.length})</h2>
+            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Orders ({filteredOrders.length})</h2>
                 <p className="text-sm text-gray-500">Total: {formatPrice(filteredOrders.reduce((sum, o) => sum + o.total, 0))}</p>
               </div>
 
               {/* Advanced Filters */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gray-50 rounded-xl p-3 sm:p-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Order ID</label>
                     <input
@@ -1406,28 +1471,28 @@ const AdminDashboard = () => {
 
         {/* Order Details Modal */}
         {showOrderModal && selectedOrder && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 sm:p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white">
+              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 sm:p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold flex items-center gap-3">
-                      <Box size={28} /> Order Details
+                    <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-3">
+                      <Box size={24} className="sm:w-7 sm:h-7" /> Order Details
                     </h2>
-                    <p className="text-purple-100 mt-1">Order #ORD-{selectedOrder.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="text-purple-100 mt-1 text-sm sm:text-base">Order #ORD-{selectedOrder.id.slice(0, 8).toUpperCase()}</p>
                   </div>
                   <button
                     onClick={() => setShowOrderModal(false)}
-                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
+                    className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
                   >
-                    <X size={20} />
+                    <X size={16} className="sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
 
               {/* Modal Body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
                 {/* Order Status */}
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
                   <div className="flex items-center justify-between">
@@ -1575,32 +1640,61 @@ const AdminDashboard = () => {
 
         {/* Users */}
         {tab === 'users' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
               <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-3 rounded-xl">
+                <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-3 rounded-xl shrink-0">
                   <ShieldCheck className="text-white" size={24} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800">Users ({filteredUsers.length})</h2>
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">Users ({filteredUsers.length})</h2>
                   <p className="text-sm text-gray-500">Manage user accounts and permissions</p>
                 </div>
               </div>
               <button
                 onClick={() => openUser(null)}
-                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
+                className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
               >
                 <Plus size={16} /> Add User
               </button>
             </div>
-            <div className="mb-6 space-y-3">
+
+            {/* Locked Accounts Section */}
+            {Object.keys(lockedAccounts).length > 0 && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+                <h3 className="text-lg font-bold text-red-800 mb-3 flex items-center gap-2">
+                  <AlertCircle size={20} /> Locked Accounts
+                </h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(lockedAccounts).map(([email, data]) => (
+                    <div key={email} className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-200">
+                      <div>
+                        <p className="font-semibold text-gray-900">{email}</p>
+                        <p className="text-xs text-gray-500">Locked at: {new Date(data.lockedAt).toLocaleString()}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Unlock account for ${email}?`)) {
+                            unlockAccount(email);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                      >
+                        Unlock
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="mb-4 sm:mb-6 space-y-3">
               <div className="relative">
                 <input
                   type="text"
                   placeholder="Search users by name, email, or phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
                 />
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1608,23 +1702,23 @@ const AdminDashboard = () => {
                   </svg>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <div className="flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
                   >
                     <option value="all">All Status</option>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
-                <div className="flex-1">
+                <div>
                   <select
                     value={filterRole}
                     onChange={(e) => setFilterRole(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
                   >
                     <option value="all">All Roles</option>
                     <option value="Admin">Admin</option>
@@ -1671,9 +1765,9 @@ const AdminDashboard = () => {
                       <td className="py-4 pr-4 text-gray-600">{u.phoneNumber || '—'}</td>
                       <td className="py-4 pr-4">
                         <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
-                          u.role === 'Admin' ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border border-purple-200' : 
-                          u.role === 'Advertiser' ? 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border border-blue-200' : 
-                          u.role === 'Other' ? 'bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border border-orange-200' : 
+                          u.role === 'Admin' ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border border-purple-200' :
+                          u.role === 'Advertiser' ? 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border border-blue-200' :
+                          u.role === 'Other' ? 'bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border border-orange-200' :
                           'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-200'
                         }`}>
                           {u.role === 'Other' ? (u.customRole || 'Custom') : (u.role || 'Customer')}
@@ -1694,7 +1788,7 @@ const AdminDashboard = () => {
                           <button onClick={() => openUser(u)} className="p-2.5 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors" title="Edit">
                             <Pencil size={16} />
                           </button>
-                          <button 
+                          <button
                             onClick={() => toggleUserActive(u.id)}
                             className={`p-2.5 rounded-xl transition-colors ${u.isActive ? 'text-orange-500 hover:bg-orange-100' : 'text-green-500 hover:bg-green-100'}`}
                             title={u.isActive ? 'Deactivate' : 'Activate'}
@@ -1716,13 +1810,13 @@ const AdminDashboard = () => {
 
         {/* Header */}
         {tab === 'header' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-3 rounded-xl">
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-3 rounded-xl shrink-0">
                 <Layout className="text-white" size={24} />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-800">Header Settings</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Header Settings</h2>
                 <p className="text-sm text-gray-500">Manage header logo, title, and menu items</p>
               </div>
             </div>
@@ -1875,18 +1969,18 @@ const AdminDashboard = () => {
 
         {/* Footer */}
         {tab === 'footer' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-3 rounded-xl">
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-3 rounded-xl shrink-0">
                 <Layout className="text-white" size={24} />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-800">Footer Settings</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Footer Settings</h2>
                 <p className="text-sm text-gray-500">Manage footer content and links</p>
               </div>
             </div>
             {footerData ? (
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
@@ -2192,17 +2286,17 @@ const AdminDashboard = () => {
 
         {/* Seeding */}
         {tab === 'seeding' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-3 rounded-xl">
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-3 rounded-xl shrink-0">
                 <Database className="text-white" size={24} />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-800">Database Seeding</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Database Seeding</h2>
                 <p className="text-sm text-gray-500">Seed the database with sample data</p>
               </div>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
               <p className="text-sm text-amber-800">
                 <strong>Warning:</strong> Seeding will add sample data to your database. This operation cannot be undone.
               </p>

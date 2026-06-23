@@ -13,9 +13,12 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import AdvertisementsPage from './pages/AdvertisementsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import PasswordResetPage from './pages/PasswordResetPage';
 import OrdersPage from './pages/OrdersPage';
 import AddressManagementPage from './pages/AddressManagementPage';
 import AdminDashboard from './pages/AdminDashboard';
+import CustomerDashboard from './pages/CustomerDashboard';
+import SettingsPage from './pages/SettingsPage';
 import CartPage from './pages/checkout/CartPage';
 import ShippingPage from './pages/checkout/ShippingPage';
 import BillingPage from './pages/checkout/BillingPage';
@@ -25,7 +28,7 @@ import ConfirmationPage from './pages/checkout/ConfirmationPage';
 function AppLayout() {
   const { pathname } = useLocation();
   const { toast } = useCart();
-  const isStandalone = pathname === '/login' || pathname === '/register' || pathname === '/admin';
+  const isStandalone = pathname === '/login' || pathname === '/register' || pathname === '/password-reset';
 
   if (isStandalone) {
     return (
@@ -33,7 +36,7 @@ function AppLayout() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/password-reset" element={<PasswordResetPage />} />
         </Routes>
         <Toast toast={toast} />
       </>
@@ -51,6 +54,9 @@ function AppLayout() {
           <Route path="/advertisements" element={<AdvertisementsPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/addresses" element={<AddressManagementPage />} />
+          <Route path="/dashboard" element={<CustomerDashboard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout/shipping" element={<ShippingPage />} />
           <Route path="/checkout/billing" element={<BillingPage />} />

@@ -14,9 +14,14 @@ const SmartHeader = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const { count } = useCart();
-  const { user, isAdmin, logout } = useAuth;
+  const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    console.log('SmartHeader: User state:', user);
+    console.log('SmartHeader: isAdmin:', isAdmin);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -206,7 +211,7 @@ const SmartHeader = () => {
           </nav>
 
           {/* Icons */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2">
             {headerData.showSearchIcon && (
               <button 
                 onClick={() => setSearchOpen(true)}
@@ -215,6 +220,21 @@ const SmartHeader = () => {
                 <Search size={22} />
               </button>
             )}
+            {/* Mobile-specific Cart icon */}
+            <div className="flex md:hidden items-center">
+              <Link
+                to="/cart"
+                className="p-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all relative"
+                title="Cart"
+              >
+                <ShoppingCart size={20} />
+                {count > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-rose-500 text-white text-xs rounded-full h-4 min-w-4 px-0.5 flex items-center justify-center shadow-md">
+                    {count}
+                  </span>
+                )}
+              </Link>
+            </div>
             {searchOpen && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-20 px-4">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
@@ -305,8 +325,8 @@ const SmartHeader = () => {
                       <ShieldCheck size={22} />
                     </Link>
                   )}
-                  <Link to="/orders" title="My Orders" className="p-2.5 text-gray-700 hover:text-blue-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all">
-                    <Package size={22} />
+                  <Link to="/dashboard" title="Dashboard" className="p-2.5 text-gray-700 hover:text-blue-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all">
+                    <Home size={22} />
                   </Link>
                   <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
                     <span className="text-sm font-semibold text-gray-700">
@@ -350,112 +370,95 @@ const SmartHeader = () => {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <nav className="md:hidden py-4 border-t-2 border-blue-100 bg-white">
-            <div className="space-y-1">
-              <Link
-                to="/"
-                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  window.scrollTo(0, 0);
-                }}
-              >
-                <Home size={20} className="text-blue-500" />
-                Home
-              </Link>
-              <Link
-                to="/shopping"
-                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  window.scrollTo(0, 0);
-                }}
-              >
-                <ShoppingBag size={20} className="text-blue-500" />
-                Shop
-              </Link>
-              <Link
-                to="/cart"
-                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  window.scrollTo(0, 0);
-                }}
-              >
-                <ShoppingCart size={20} className="text-blue-500" />
-                Cart
-              </Link>
-            </div>
-            {headerData.menuItems
-              .filter(item => item.isActive)
-              .sort((a, b) => a.displayOrder - b.displayOrder)
-              .map(item => {
-                const IconComponent = getIconComponent(item.icon, item.iconType);
-                const isImageIcon = item.iconType === 'binary' || item.iconType === 'base64' || item.icon?.startsWith('http') || item.icon?.startsWith('data:image');
-                return (
-                  <div key={item.id} className="py-2">
+            {/* User section in mobile menu */}
+            {user ? (
+              <div>
+                <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                      {user.fullName?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{user.fullName}</p>
+                      <p className="text-xs text-gray-500">{user.email}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Link
+                    to="/dashboard"
+                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      window.scrollTo(0, 0);
+                    }}
+                  >
+                    <User size={20} className="text-blue-500" />
+                    My Dashboard
+                  </Link>
+                  <Link
+                    to="/orders"
+                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      window.scrollTo(0, 0);
+                    }}
+                  >
+                    <Package size={20} className="text-blue-500" />
+                    My Orders
+                  </Link>
+                  {isAdmin && (
                     <Link
-                      to={item.link || '#'}
-                      className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
+                      to="/admin"
+                      className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-purple-600 hover:bg-purple-50 transition-all font-medium rounded-lg"
                       onClick={() => {
                         setMobileMenuOpen(false);
                         window.scrollTo(0, 0);
                       }}
                     >
-                      {isImageIcon ? (
-                        <img 
-                          src={item.icon} 
-                          alt={item.label} 
-                          className="w-5 h-5 object-contain"
-                          onError={(e) => {
-                            console.error('Failed to load mobile icon for', item.label, item.icon);
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        IconComponent && <IconComponent size={18} className="text-blue-500" />
-                      )}
-                      {item.label}
+                      <ShieldCheck size={20} className="text-purple-500" />
+                      Admin Panel
                     </Link>
-                    {item.subMenus && item.subMenus.length > 0 && (
-                      <div className="ml-6 mt-2 space-y-1">
-                        {item.subMenus
-                          .filter(sub => sub.isActive)
-                          .sort((a, b) => a.displayOrder - b.displayOrder)
-                          .map(sub => {
-                            const SubIconComponent = getIconComponent(sub.icon, sub.iconType);
-                            const isSubImageIcon = sub.iconType === 'binary' || sub.iconType === 'base64' || sub.icon?.startsWith('http') || sub.icon?.startsWith('data:image');
-                            return (
-                              <Link
-                                key={sub.id}
-                                to={sub.link || '#'}
-                                className="flex items-center gap-3 px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-lg"
-                                onClick={() => {
-                                  setMobileMenuOpen(false);
-                                  window.scrollTo(0, 0);
-                                }}
-                              >
-                                {isSubImageIcon ? (
-                                  <img 
-                                    src={sub.icon} 
-                                    alt={sub.label} 
-                                    className="w-4 h-4 object-contain"
-                                    onError={(e) => {
-                                      console.error('Failed to load mobile submenu icon for', sub.label, sub.icon);
-                                      e.target.style.display = 'none';
-                                    }}
-                                  />
-                                ) : (
-                                  SubIconComponent && <SubIconComponent size={16} className="text-blue-500" />
-                                )}
-                                <span className="text-sm">{sub.label}</span>
-                              </Link>
-                            );
-                          })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                  )}
+                  <button
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                      window.scrollTo(0, 0);
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 transition-all font-medium rounded-lg w-full"
+                  >
+                    <LogOut size={20} />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Link
+                  to="/login"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  <User size={20} className="text-blue-500" />
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium rounded-lg"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  <User size={20} className="text-blue-500" />
+                  Register
+                </Link>
+              </div>
+            )}
           </nav>
         )}
       </div>
