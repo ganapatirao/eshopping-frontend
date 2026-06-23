@@ -22,9 +22,11 @@ const LoginPage = () => {
     const result = login(email, password);
     setLoading(false);
     if (result.ok) {
+      // Navigate based on user role - no popup, direct navigation
       const dest = result.role === 'Admin' ? '/admin' : redirectTo;
       navigate(dest, { replace: true });
     } else {
+      // Show inline error instead of popup
       setError(result.error);
     }
   };

@@ -3,8 +3,10 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import SmartHeader from './components/SmartHeader';
 import SmartFooter from './components/SmartFooter';
 import MobileBottomNav from './components/MobileBottomNav';
+import Toast from './components/Toast';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
+import { useCart } from './context/CartContext';
 import HomePage from './pages/HomePage';
 import ShoppingPage from './pages/ShoppingPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -22,15 +24,19 @@ import ConfirmationPage from './pages/checkout/ConfirmationPage';
 
 function AppLayout() {
   const { pathname } = useLocation();
+  const { toast } = useCart();
   const isStandalone = pathname === '/login' || pathname === '/register' || pathname === '/admin';
 
   if (isStandalone) {
     return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-      </Routes>
+      <>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Routes>
+        <Toast toast={toast} />
+      </>
     );
   }
 
@@ -54,6 +60,7 @@ function AppLayout() {
       </main>
       <SmartFooter />
       <MobileBottomNav />
+      <Toast toast={toast} />
     </div>
   );
 }

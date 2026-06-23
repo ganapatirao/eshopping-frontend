@@ -95,16 +95,31 @@ const CartPage = () => {
                     </div>
                     <div className="grow min-w-0">
                       <h3 className="font-bold text-gray-800 mb-1 line-clamp-2 text-lg">{item.name}</h3>
-                      <p className="text-blue-600 font-bold text-xl">{formatPrice(item.price)}</p>
-                      
+                      <div className="flex items-center gap-2 mb-1">
+                        {item.discountPercentage > 0 && item.originalPrice > item.price && (
+                          <>
+                            <p className="text-gray-400 line-through text-sm">{formatPrice(item.originalPrice)}</p>
+                            <span className="bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+                              {item.discountPercentage}% OFF
+                            </span>
+                          </>
+                        )}
+                        <p className="text-blue-600 font-bold text-xl">{formatPrice(item.price)}</p>
+                      </div>
+                      {item.selectedVariant && (
+                        <p className="text-sm text-gray-600">
+                          {item.selectedVariant.color} / {item.selectedVariant.size}
+                        </p>
+                      )}
+
                       {(() => {
                         const description = getItemDescription(item);
                         if (description) {
                           return (
                             <div className="mt-2">
                               <p className="text-gray-600 text-sm">
-                                {expandedItems[item.productId] 
-                                  ? description 
+                                {expandedItems[item.productId]
+                                  ? description
                                   : `${description.substring(0, 80)}${description.length > 80 ? '...' : ''}`
                                 }
                               </p>

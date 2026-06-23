@@ -29,6 +29,7 @@ const ProductDetailPage = () => {
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [selectedVariant, setSelectedVariant] = useState(null);
+  const [reviewsExpanded, setReviewsExpanded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -88,20 +89,56 @@ const ProductDetailPage = () => {
   })();
 
   const handleAddToCart = () => {
-    const productToAdd = selectedVariant 
+    // Enforce variant selection if product has variants
+    if (product.variants && product.variants.length > 0) {
+      if (!selectedColor || !selectedSize) {
+        alert('Please select a color and size before adding to cart');
+        return;
+      }
+      if (!selectedVariant) {
+        alert('Please select a valid variant');
+        return;
+      }
+    }
+
+    const productToAdd = selectedVariant
       ? { ...product, price: selectedVariant.price, originalPrice: selectedVariant.originalPrice, stock: selectedVariant.stock, selectedVariant }
       : product;
-    addToCart(productToAdd, quantity);
+    addToCart(productToAdd, quantity, selectedVariant);
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
 
   const handleBuyNow = () => {
-    const productToAdd = selectedVariant 
+    // Enforce variant selection if product has variants
+    if (product.variants && product.variants.length > 0) {
+      if (!selectedColor || !selectedSize) {
+        alert('Please select a color and size before buying');
+        return;
+      }
+      if (!selectedVariant) {
+        alert('Please select a valid variant');
+        return;
+      }
+    }
+
+    const productToAdd = selectedVariant
       ? { ...product, price: selectedVariant.price, originalPrice: selectedVariant.originalPrice, stock: selectedVariant.stock, selectedVariant }
       : product;
-    addToCart(productToAdd, quantity);
+    addToCart(productToAdd, quantity, selectedVariant);
     navigate('/cart');
+  };
+
+  const scrollToReviews = () => {
+    const element = document.getElementById('reviews');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setReviewsExpanded(true);
+    }
+  };
+
+  const toggleReviews = () => {
+    setReviewsExpanded(!reviewsExpanded);
   };
 
   if (loading) {
@@ -128,18 +165,16 @@ const ProductDetailPage = () => {
     );
   }
 
-  const discount =
-    product.originalPrice && product.originalPrice > product.price
-      ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
-      : 0;
+  const discount = product.discountPercentage || 0;
 
-  const currentPrice = selectedVariant?.price || product.price;
-  const currentOriginalPrice = selectedVariant?.originalPrice || product.originalPrice;
+  const basePrice = selectedVariant?.price || product.price;
+  const baseOriginalPrice = selectedVariant?.originalPrice || product.originalPrice || basePrice;
+  const currentDiscount = selectedVariant?.discountPercentage || product.discountPercentage || 0;
+  const currentPrice = currentDiscount > 0
+    ? Math.round(baseOriginalPrice * (1 - currentDiscount / 100))
+    : basePrice;
+  const currentOriginalPrice = baseOriginalPrice;
   const currentStock = selectedVariant?.stock || product.stock;
-  const currentDiscount =
-    currentOriginalPrice && currentOriginalPrice > currentPrice
-      ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
-      : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -205,20 +240,26 @@ const ProductDetailPage = () => {
                   />
                 ))}
               </div>
-              <span className="text-sm text-gray-500">
+              <button
+                onClick={scrollToReviews}
+                className="text-sm text-gray-500 hover:text-blue-600 transition-colors cursor-pointer underline decoration-dotted"
+              >
                 {product.rating || 0} ({product.reviewCount || 0} reviews)
-              </span>
+              </button>
             </div>
 
             <div className="flex items-end gap-3 mb-5">
+              {currentDiscount > 0 && currentOriginalPrice > currentPrice && (
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg text-gray-400 line-through">{formatPrice(currentOriginalPrice)}</span>
+                  <span className="bg-red-100 text-red-600 text-sm font-semibold px-3 py-1 rounded-full">
+                    {currentDiscount}% OFF
+                  </span>
+                </div>
+              )}
               <span className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 {formatPrice(currentPrice)}
               </span>
-              {currentOriginalPrice && currentOriginalPrice > currentPrice && (
-                <span className="text-lg text-gray-400 line-through mb-1">
-                  {formatPrice(currentOriginalPrice)}
-                </span>
-              )}
             </div>
 
             {product.description && (
@@ -326,22 +367,214 @@ const ProductDetailPage = () => {
 
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { icon: Truck, label: 'Free shipping over ₹100' },
-                { icon: ShieldCheck, label: 'Secure payment' },
-                { icon: RefreshCw, label: 'Easy returns' },
-              ].map(({ icon: Icon, label }) => (
-                <div
-                  key={label}
-                  className="flex flex-col items-center text-center gap-2 bg-white rounded-xl p-3 shadow-sm"
-                >
-                  <Icon className="text-blue-600" size={22} />
-                  <span className="text-[11px] sm:text-xs text-gray-600 leading-tight">{label}</span>
+              {product.trustBadges && product.trustBadges.length > 0 ? (
+                product.trustBadges
+                  .filter(badge => badge.isActive)
+                  .sort((a, b) => a.displayOrder - b.displayOrder)
+                  .map((badge, index) => (
+                    <div
+                      key={index}
+                      className="flex flex-col items-center text-center gap-2 bg-white rounded-xl p-3 shadow-sm"
+                    >
+                      {badge.icon ? (
+                        badge.icon.startsWith('data:') ? (
+                          <img src={badge.icon} alt={badge.label} className="w-6 h-6 sm:w-8 sm:h-8 object-contain" />
+                        ) : (
+                          <span className="text-2xl">{badge.icon}</span>
+                        )
+                      ) : (
+                        <span className="text-2xl">📦</span>
+                      )}
+                      <span className="text-[11px] sm:text-xs text-gray-600 leading-tight">{badge.label}</span>
+                    </div>
+                  ))
+              ) : (
+                // Fallback to default badges if none configured
+                [
+                  { icon: '🚚', label: 'Free shipping over ₹100' },
+                  { icon: '🛡️', label: 'Secure payment' },
+                  { icon: '↩️', label: 'Easy returns' },
+                ].map(({ icon, label }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col items-center text-center gap-2 bg-white rounded-xl p-3 shadow-sm"
+                  >
+                    <span className="text-2xl">{icon}</span>
+                    <span className="text-[11px] sm:text-xs text-gray-600 leading-tight">{label}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Warranty Section */}
+        {product.warranty && (
+          <div id="warranty" className="mt-6 sm:mt-8 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-emerald-100">
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              {product.warrantyIcon ? (
+                product.warrantyIcon.startsWith('data:') ? (
+                  <img src={product.warrantyIcon} alt="Warranty icon" className="w-6 h-6 sm:w-8 sm:h-8 object-contain" />
+                ) : (
+                  <span className="text-2xl sm:text-3xl">{product.warrantyIcon}</span>
+                )
+              ) : (
+                <ShieldCheck className="text-emerald-600" size={20} />
+              )}
+              <h3 className="text-base sm:text-lg font-bold text-gray-800">Warranty</h3>
+            </div>
+            <p className="text-sm sm:text-base text-gray-700">{product.warranty}</p>
+          </div>
+        )}
+
+        {/* Dynamic Sections (additional sections added by admin) */}
+        {product.dynamicSections && product.dynamicSections.length > 0 && (
+          <>
+            {product.dynamicSections
+              .filter(section => section.isActive)
+              .sort((a, b) => a.displayOrder - b.displayOrder)
+              .map((section, index) => (
+                <div key={index} id={`section-${section.id || index}`} className="mt-6 sm:mt-8 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-violet-100">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                    {section.icon ? (
+                      section.icon.startsWith('data:') ? (
+                        <img src={section.icon} alt={section.title} className="w-6 h-6 sm:w-8 sm:h-8 object-contain" />
+                      ) : (
+                        <span className="text-2xl sm:text-3xl">{section.icon}</span>
+                      )
+                    ) : (
+                      <span className="text-2xl sm:text-3xl">📄</span>
+                    )}
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800">{section.title}</h3>
+                  </div>
+                  {section.sectionType === 'text' && (
+                    <p className="text-sm sm:text-base text-gray-700 whitespace-pre-line">{section.content}</p>
+                  )}
+                  {section.sectionType === 'list' && (
+                    <ul className="text-sm sm:text-base text-gray-700 list-disc list-inside space-y-1">
+                      {section.content.split('\n').map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {section.sectionType === 'table' && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm sm:text-base text-gray-700">
+                        <tbody>
+                          {section.content.split('\n').map((row, i) => {
+                            const [label, value] = row.split(':');
+                            return (
+                              <tr key={i} className="border-b border-violet-100 last:border-0">
+                                <td className="py-2 pr-4 font-medium text-violet-700">{label}</td>
+                                <td className="py-2">{value}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </>
+        )}
+
+        {/* Specifications Section */}
+        {product.specifications && product.specifications.length > 0 && (
+          <div id="specs" className="mt-6 sm:mt-8 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-orange-100">
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg sm:rounded-xl flex items-center justify-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-gray-800">Specifications</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              {product.specifications.map((spec, index) => (
+                <div key={index} className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border border-orange-100 hover:shadow-md transition-shadow">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-orange-100 to-amber-100 rounded-md sm:rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-orange-600 font-bold text-xs sm:text-sm">{index + 1}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] sm:text-xs font-semibold text-orange-700 uppercase tracking-wide mb-0.5 sm:mb-1">{spec.name}</p>
+                      <p className="text-xs sm:text-sm font-medium text-gray-800 break-words">{spec.value}</p>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Reviews Section */}
+        {product.reviews && product.reviews.length > 0 && (
+          <div id="reviews" className="mt-6 sm:mt-8 bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <button
+              onClick={toggleReviews}
+              className="w-full flex items-center justify-between p-4 sm:p-6 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg sm:rounded-xl flex items-center justify-center">
+                  <Star className="text-white" size={16} />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800">Customer Reviews</h3>
+                <span className="text-xs sm:text-sm text-gray-500">({product.reviews.length})</span>
+              </div>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${reviewsExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <div
+              className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                reviewsExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+              }`}
+            >
+              <div className="p-4 sm:p-6 pt-0 space-y-3 sm:space-y-4">
+                {product.reviews.map((review, index) => (
+                  <div key={index} className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base">
+                          {review.userName?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                        <div>
+                          <p className="text-xs sm:text-sm font-semibold text-gray-800">{review.userName}</p>
+                          <div className="flex items-center">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                size={12}
+                                className={
+                                  s <= review.rating
+                                    ? 'text-yellow-400 fill-current'
+                                    : 'text-gray-300'
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] sm:text-xs text-gray-500">
+                        {new Date(review.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {review.comment && (
+                      <p className="text-xs sm:text-sm text-gray-600 mt-2">{review.comment}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

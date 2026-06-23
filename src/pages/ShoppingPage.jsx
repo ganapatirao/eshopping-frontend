@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ShoppingCart, Filter, ChevronDown, ChevronRight, X, Sparkles, Tag, Layers, SlidersHorizontal } from 'lucide-react';
+import { ShoppingCart, Filter, ChevronDown, ChevronRight, X, Sparkles, Tag, Layers, SlidersHorizontal, Check } from 'lucide-react';
 import { categoriesAPI, productsAPI, advertisementsAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../utils/format';
@@ -19,8 +19,15 @@ const FilterContent = ({
   sortBy,
   setSortBy,
   onClearAll,
-  onResetCategories
+  onResetCategories,
+  onApply,
+  onCancel,
+  isMobile,
+  categories,
+  expandedSections,
+  toggleSection
 }) => {
+
   const categoryIcons = {
     'Electronics': '📱',
     'Clothing': '👕',
@@ -39,145 +46,280 @@ const FilterContent = ({
   const hasActiveFilters = selectedCategory || selectedSubCategory || priceRange.min > 0 || priceRange.max < 10000 || sortBy !== 'featured';
 
   return (
-    <div className="space-y-5">
-      {/* Clear All Button */}
-      {hasActiveFilters && (
-        <button
-          onClick={onClearAll}
-          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl p-3 font-semibold shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
-        >
-          <X size={18} />
-          Clear All Filters
-        </button>
-      )}
-
-      {/* Sort Options - Pills */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Sort By</h3>
-          {sortBy !== 'featured' && (
+    <div className="space-y-4">
+      {/* Header - Desktop Only */}
+      {!isMobile && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-gray-800">Filters</h2>
+            {hasActiveFilters && (
+              <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                {[selectedCategory, selectedSubCategory, priceRange.max < 10000, sortBy !== 'featured'].filter(Boolean).length}
+              </span>
+            )}
+          </div>
+          {hasActiveFilters && (
             <button
-              onClick={() => setSortBy('featured')}
-              className="text-xs text-red-500 hover:text-red-600 font-medium"
+              onClick={onClearAll}
+              className="flex items-center gap-1.5 bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
             >
-              Reset
+              <X size={12} />
+              Clear All
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { id: 'featured', label: 'Featured', icon: '⭐' },
-            { id: 'price-low', label: 'Price: Low', icon: '📉' },
-            { id: 'price-high', label: 'Price: High', icon: '📈' },
-            { id: 'rating', label: 'Top Rated', icon: '⭐' }
-          ].map((option) => (
+      )}
+
+      {/* Active Filters Summary - Mobile Only */}
+      {isMobile && hasActiveFilters && (
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-3 border border-blue-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Check size={14} className="text-blue-600" />
+              <span className="text-xs font-semibold text-gray-700">Active Filters</span>
+            </div>
             <button
-              key={option.id}
-              onClick={() => setSortBy(option.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                sortBy === option.id
-                  ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              onClick={onClearAll}
+              className="text-xs text-red-600 hover:text-red-700 font-medium"
             >
-              <span>{option.icon}</span>
-              {option.label}
+              Clear All
             </button>
-          ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selectedCategory && (
+              <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-full text-xs font-medium text-blue-700 border border-blue-300 shadow-sm">
+                <span>📁 {categories.find(c => c.id === selectedCategory)?.name || 'Category'}</span>
+                <button onClick={() => onResetCategories()} className="hover:text-red-500 ml-1">
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+            {selectedSubCategory && (
+              <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-full text-xs font-medium text-purple-700 border border-purple-300 shadow-sm">
+                <span>🏷️ {categories.find(c => c.id === selectedSubCategory)?.name || 'Subcategory'}</span>
+                <button onClick={() => onResetCategories()} className="hover:text-red-500 ml-1">
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+            {priceRange.max < 10000 && (
+              <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-full text-xs font-medium text-green-700 border border-green-300 shadow-sm">
+                <span>💰 Max: ₹{priceRange.max}</span>
+                <button onClick={() => setPriceRange({ min: 0, max: 10000 })} className="hover:text-red-500 ml-1">
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+            {sortBy !== 'featured' && (
+              <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-full text-xs font-medium text-orange-700 border border-orange-300 shadow-sm">
+                <span>🔄 {sortBy === 'price-low' ? 'Price: Low' : sortBy === 'price-high' ? 'Price: High' : 'Top Rated'}</span>
+                <button onClick={() => setSortBy('featured')} className="hover:text-red-500 ml-1">
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Sort Options - Collapsible */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => toggleSection('sort')}
+          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🔄</span>
+            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Sort By</h3>
+          </div>
+          <ChevronDown size={16} className={`text-gray-500 transition-transform ${expandedSections.sort ? 'rotate-180' : ''}`} />
+        </button>
+        {expandedSections.sort && (
+          <div className="p-3 grid grid-cols-2 gap-2">
+            {[
+              { id: 'featured', label: 'Featured', icon: '⭐' },
+              { id: 'price-low', label: 'Price: Low', icon: '📉' },
+              { id: 'price-high', label: 'Price: High', icon: '📈' },
+              { id: 'rating', label: 'Top Rated', icon: '⭐' }
+            ].map((option) => (
+              <button
+                key={option.id}
+                onClick={() => setSortBy(option.id)}
+                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
+                  sortBy === option.id
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <span className="text-sm">{option.icon}</span>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Price Range - Compact */}
-      <div>
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Price Range</h3>
-        <div className="bg-gray-50 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">💰</span>
-              <span className="text-sm font-medium text-gray-700">₹{priceRange.min} - ₹{priceRange.max}</span>
+      {/* Price Range - Collapsible */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => toggleSection('price')}
+          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm">💰</span>
+            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Price Range</h3>
+          </div>
+          <ChevronDown size={16} className={`text-gray-500 transition-transform ${expandedSections.price ? 'rotate-180' : ''}`} />
+        </button>
+        {expandedSections.price && (
+          <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-800">₹{priceRange.min} - ₹{priceRange.max}</span>
+              {(priceRange.min > 0 || priceRange.max < 10000) && (
+                <button
+                  onClick={() => setPriceRange({ min: 0, max: 10000 })}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
+                >
+                  <X size={12} />
+                  Reset
+                </button>
+              )}
             </div>
-            {(priceRange.min > 0 || priceRange.max < 10000) && (
+            <div className="flex gap-3 mb-3">
+              <div className="flex-1">
+                <label className="text-xs text-gray-600 mb-1 block">Min</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="10000"
+                  value={priceRange.min}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (!isNaN(value) && value >= 0) {
+                      setPriceRange({ ...priceRange, min: Math.min(value, priceRange.max - 1) });
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-gray-600 mb-1 block">Max</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="10000"
+                  value={priceRange.max}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (!isNaN(value) && value >= 0) {
+                      setPriceRange({ ...priceRange, max: Math.max(value, priceRange.min + 1) });
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="10000"
+                />
+              </div>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="10000"
+              value={priceRange.max}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                setPriceRange({ ...priceRange, max: Math.max(value, priceRange.min + 1) });
+              }}
+              className="w-full h-2 bg-gradient-to-r from-blue-200 to-purple-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Categories - Collapsible */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => toggleSection('categories')}
+          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm">📁</span>
+            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Categories</h3>
+            {(selectedCategory || selectedSubCategory) && (
+              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-medium">
+                Active
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {(selectedCategory || selectedSubCategory) && (
               <button
-                onClick={() => setPriceRange({ min: 0, max: 10000 })}
-                className="text-xs text-red-500 hover:text-red-600 font-medium"
+                onClick={(e) => { e.stopPropagation(); onResetCategories(); }}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
               >
+                <X size={12} />
                 Reset
               </button>
             )}
+            <ChevronDown size={16} className={`text-gray-500 transition-transform ${expandedSections.categories ? 'rotate-180' : ''}`} />
           </div>
-          <input
-            type="range"
-            min="0"
-            max="10000"
-            value={priceRange.max}
-            onChange={(e) => setPriceRange({ ...priceRange, max: parseInt(e.target.value) })}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-          />
-        </div>
+        </button>
+        {expandedSections.categories && (
+          <div className="p-3 space-y-2">
+            {rootCategories.map(category => (
+              <div key={category.id}>
+                <button
+                  onClick={() => {
+                    toggleCategory(category.id);
+                    handleCategoryClick(category);
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl transition-all border ${
+                    selectedCategory === category.id
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md border-transparent'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">{getCategoryIcon(category.name)}</span>
+                    <span className="text-sm font-semibold">{category.name}</span>
+                  </div>
+                  {getSubCategories(category.id).length > 0 && (
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      selectedCategory === category.id
+                        ? 'bg-white/20 text-white'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {getSubCategories(category.id).length}
+                    </span>
+                  )}
+                </button>
+                
+                {expandedCategories.has(category.id) && getSubCategories(category.id).length > 0 && (
+                  <div className="ml-4 mt-2 space-y-1.5">
+                    {getSubCategories(category.id).map(sub => (
+                      <button
+                        key={sub.id}
+                        onClick={() => handleSubCategoryClick(sub)}
+                        className={`w-full text-left p-2.5 rounded-lg transition-all border ${
+                          selectedSubCategory === sub.id
+                            ? 'bg-purple-100 text-purple-700 font-medium text-xs border-purple-300'
+                            : 'bg-white text-gray-600 hover:bg-gray-50 text-xs border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{getCategoryIcon(sub.name)}</span>
+                          <span className="text-xs font-medium">{sub.name}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Categories - Chips */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Categories</h3>
-          {(selectedCategory || selectedSubCategory) && (
-            <button
-              onClick={onResetCategories}
-              className="text-xs text-red-500 hover:text-red-600 font-medium"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-        <div className="space-y-2">
-          {rootCategories.map(category => (
-            <div key={category.id}>
-              <button
-                onClick={() => {
-                  toggleCategory(category.id);
-                  handleCategoryClick(category);
-                }}
-                className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-                  selectedCategory === category.id
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">{getCategoryIcon(category.name)}</span>
-                  <span className="font-semibold">{category.name}</span>
-                </div>
-                {getSubCategories(category.id).length > 0 && (
-                  <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
-                    {getSubCategories(category.id).length}
-                  </span>
-                )}
-              </button>
-              
-              {expandedCategories.has(category.id) && getSubCategories(category.id).length > 0 && (
-                <div className="ml-4 mt-2 space-y-2">
-                  {getSubCategories(category.id).map(sub => (
-                    <button
-                      key={sub.id}
-                      onClick={() => handleSubCategoryClick(sub)}
-                      className={`w-full text-left p-2.5 rounded-lg transition-all ${
-                        selectedSubCategory === sub.id
-                          ? 'bg-purple-100 text-purple-700 font-medium'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{getCategoryIcon(sub.name)}</span>
-                        <span className="text-sm">{sub.name}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
@@ -198,7 +340,12 @@ const ShoppingPage = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
   const [sortBy, setSortBy] = useState('featured');
+  const [expandedSections, setExpandedSections] = useState({ sort: true, price: true, categories: true });
   const { addToCart } = useCart();
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   useEffect(() => {
     fetchData();
@@ -241,12 +388,15 @@ const ShoppingPage = () => {
 
   const fetchData = async () => {
     try {
-      const [categoriesRes, productsRes, adsRes] = await Promise.all([
+      const [categoriesRes, subCategoriesRes, productsRes, adsRes] = await Promise.all([
         categoriesAPI.getAll(),
-        productsAPI.getAll(selectedCategory),
+        categoriesAPI.getSubCategories(),
+        productsAPI.getAll(selectedCategory, selectedSubCategory),
         advertisementsAPI.getAll('BetweenProducts', selectedCategory)
       ]);
-      setCategories(categoriesRes.data);
+      // Combine root categories and subcategories
+      const allCategories = [...categoriesRes.data, ...subCategoriesRes.data];
+      setCategories(allCategories);
       setProducts(productsRes.data);
       setAdvertisements(adsRes.data);
     } catch (error) {
@@ -269,12 +419,10 @@ const ShoppingPage = () => {
   const handleCategoryClick = (category) => {
     setSelectedCategory(category.id);
     setSelectedSubCategory(null);
-    setFilterOpen(false);
   };
 
   const handleSubCategoryClick = (subCategory) => {
     setSelectedSubCategory(subCategory.id);
-    setFilterOpen(false);
   };
 
   const handleClearAll = () => {
@@ -282,7 +430,6 @@ const ShoppingPage = () => {
     setSelectedSubCategory(null);
     setPriceRange({ min: 0, max: 10000 });
     setSortBy('featured');
-    setFilterOpen(false);
   };
 
   const handleResetCategories = () => {
@@ -320,14 +467,14 @@ const ShoppingPage = () => {
           {/* Mobile Filter Overlay */}
           {filterOpen && (
             <div 
-              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              className="fixed inset-0 bg-black/50 z-50 lg:hidden flex flex-col"
               onClick={() => setFilterOpen(false)}
             >
               <div 
-                className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[80vh] overflow-y-auto"
+                className="mt-auto bg-white rounded-t-3xl max-h-[85vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between">
+                <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between flex-shrink-0">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <Layers size={24} className="text-blue-600" />
                     Filters
@@ -339,7 +486,7 @@ const ShoppingPage = () => {
                     <X size={24} className="text-gray-600" />
                   </button>
                 </div>
-                <div className="p-4">
+                <div className="flex-1 overflow-y-auto p-4">
                   <FilterContent 
                     rootCategories={rootCategories}
                     getSubCategories={getSubCategories}
@@ -355,7 +502,20 @@ const ShoppingPage = () => {
                     setSortBy={setSortBy}
                     onClearAll={handleClearAll}
                     onResetCategories={handleResetCategories}
+                    isMobile={true}
+                    categories={categories}
+                    expandedSections={expandedSections}
+                    toggleSection={toggleSection}
                   />
+                </div>
+                <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 flex-shrink-0">
+                  <button
+                    onClick={() => setFilterOpen(false)}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl p-3 text-sm font-semibold shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+                  >
+                    <Check size={16} />
+                    Done
+                  </button>
                 </div>
               </div>
             </div>
@@ -381,16 +541,20 @@ const ShoppingPage = () => {
                 getSubCategories={getSubCategories}
                 expandedCategories={expandedCategories}
                 toggleCategory={toggleCategory}
-                handleCategoryClick={handleCategoryClick}
-                handleSubCategoryClick={handleSubCategoryClick}
+                handleCategoryClick={(cat) => { setSelectedCategory(cat.id); setSelectedSubCategory(null); }}
+                handleSubCategoryClick={(sub) => setSelectedSubCategory(sub.id)}
                 selectedCategory={selectedCategory}
                 selectedSubCategory={selectedSubCategory}
                 priceRange={priceRange}
                 setPriceRange={setPriceRange}
                 sortBy={sortBy}
                 setSortBy={setSortBy}
-                onClearAll={handleClearAll}
-                onResetCategories={handleResetCategories}
+                onClearAll={() => { setSelectedCategory(null); setSelectedSubCategory(null); setPriceRange({ min: 0, max: 10000 }); setSortBy('featured'); }}
+                onResetCategories={() => { setSelectedCategory(null); setSelectedSubCategory(null); }}
+                isMobile={false}
+                categories={categories}
+                expandedSections={expandedSections}
+                toggleSection={toggleSection}
               />
             </div>
           </div>
@@ -481,10 +645,27 @@ const ShoppingPage = () => {
                           )}
                           <div className="flex items-end justify-between gap-1 mb-3 flex-wrap mt-auto">
                             <div>
-                              <span className="text-lg sm:text-2xl font-bold text-blue-600">{formatPrice(product.price)}</span>
-                              {product.originalPrice && (
-                                <span className="text-xs sm:text-sm text-gray-500 line-through ml-1.5">{formatPrice(product.originalPrice)}</span>
-                              )}
+                              {(() => {
+                                const originalPrice = product.originalPrice || product.price;
+                                const discountPercentage = product.discountPercentage || 0;
+                                const finalPrice = discountPercentage > 0
+                                  ? Math.round(originalPrice * (1 - discountPercentage / 100))
+                                  : product.price;
+
+                                return (
+                                  <>
+                                    {discountPercentage > 0 && (
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs sm:text-sm text-gray-500 line-through">{formatPrice(originalPrice)}</span>
+                                        <span className="bg-red-100 text-red-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                          {discountPercentage}% OFF
+                                        </span>
+                                      </div>
+                                    )}
+                                    <span className="text-lg sm:text-2xl font-bold text-blue-600">{formatPrice(finalPrice)}</span>
+                                  </>
+                                );
+                              })()}
                             </div>
                             <div className="flex items-center text-yellow-500 text-sm">
                               <span>⭐ {product.rating}</span>
@@ -493,10 +674,17 @@ const ShoppingPage = () => {
                           </div>
                           <button
                             className="w-full bg-blue-600 text-white py-2 rounded-xl hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
-                            onClick={() => addToCart(product)}
+                            onClick={() => {
+                              if (product.variants && product.variants.length > 0) {
+                                // Redirect to product detail page for variant selection
+                                window.location.href = `/product/${product.id}`;
+                              } else {
+                                addToCart(product);
+                              }
+                            }}
                           >
                             <ShoppingCart size={16} />
-                            <span>Add to Cart</span>
+                            <span>{product.variants && product.variants.length > 0 ? 'Select Options' : 'Add to Cart'}</span>
                           </button>
                         </div>
                       </div>

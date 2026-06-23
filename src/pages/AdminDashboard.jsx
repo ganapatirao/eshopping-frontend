@@ -44,12 +44,18 @@ const emptyProduct = {
   availableColors: [],
   availableSizes: [],
   variants: [],
+  warranty: '',
+  warrantyIcon: '',
+  specifications: [],
+  dynamicSections: [],
+  trustBadges: [],
 };
 
 const emptyCategory = {
   name: '',
   description: '',
   imageUrl: '',
+  parentCategoryId: '',
   displayOrder: 0,
   isActive: true,
 };
@@ -61,11 +67,13 @@ const AdminDashboard = () => {
   const [tab, setTab] = useState('overview');
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [subCategories, setSubCategories] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [productModal, setProductModal] = useState({ open: false, data: null });
   const [categoryModal, setCategoryModal] = useState({ open: false, data: null });
+  const [subCategoryModal, setSubCategoryModal] = useState({ open: false, data: null });
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [variantModal, setVariantModal] = useState({ open: false, data: null, index: null });
@@ -112,9 +120,10 @@ const AdminDashboard = () => {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [p, c, o, h, f, u] = await Promise.all([
+      const [p, c, sc, o, h, f, u] = await Promise.all([
         productsAPI.getAllAdmin(),
         categoriesAPI.getAllAdmin(),
+        categoriesAPI.getSubCategories(),
         ordersAPI.getAll(),
         layoutAPI.getHeader(),
         layoutAPI.getFooter(),
@@ -122,6 +131,7 @@ const AdminDashboard = () => {
       ]);
       setProducts(p.data);
       setCategories(c.data);
+      setSubCategories(sc.data);
       setOrders(o.data);
       setHeaderData(h.data);
       setFooterData(f.data);
@@ -135,6 +145,51 @@ const AdminDashboard = () => {
   };
 
   const categoryName = (id) => categories.find((c) => c.id === id)?.name || '—';
+  const subCategoryName = (id) => subCategories.find((sc) => sc.id === id)?.name || '—';
+
+  const openSubCategory = (data) => {
+    setForm(data ? { ...emptyCategory, ...data } : { ...emptyCategory });
+    setSubCategoryModal({ open: true, data });
+    setCategoryImagePreview(data?.imageUrl || null);
+  };
+
+  const saveSubCategory = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = { ...form };
+      if (categoryImagePreview) {
+        payload.imageUrl = categoryImagePreview;
+      }
+      if (subCategoryModal.data) {
+        await categoriesAPI.updateSubCategory(subCategoryModal.data.id, payload);
+      } else {
+        await categoriesAPI.createSubCategory(payload);
+      }
+      loadAll();
+      setSubCategoryModal({ open: false, data: null });
+      setForm({ ...emptyCategory });
+      setCategoryImagePreview(null);
+    } catch (err) {
+      console.error('Error saving subcategory:', err);
+      alert('Failed to save subcategory');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteSubCategory = async (id) => {
+    setDeleteModal({
+      open: true,
+      item: subCategories.find(sc => sc.id === id),
+      type: 'subcategory',
+      onConfirm: async () => {
+        await categoriesAPI.removeSubCategory(id);
+        loadAll();
+        setDeleteModal({ open: false, item: null, type: null, onConfirm: null });
+      }
+    });
+  };
 
   const formatDateTime = (d) =>
     new Date(d).toLocaleString('en-US', {
@@ -234,6 +289,11 @@ const AdminDashboard = () => {
       availableSizes: form.availableSizes || [],
       variants: form.variants || [],
     };
+
+    // Preserve existing reviews when updating - don't send reviews in payload
+    // Reviews will be managed separately by users who have purchased the product
+    delete payload.reviews;
+
     try {
       if (productModal.data?.id) {
         await productsAPI.update(productModal.data.id, { ...productModal.data, ...payload });
@@ -326,6 +386,30 @@ const AdminDashboard = () => {
 
   const removeSize = (index) => {
     setForm({ ...form, availableSizes: form.availableSizes.filter((_, i) => i !== index) });
+  };
+
+  const addSpecification = () => {
+    setForm({ ...form, specifications: [...(form.specifications || []), { name: '', value: '' }] });
+  };
+
+  const deleteSpecification = (index) => {
+    setForm({ ...form, specifications: form.specifications.filter((_, i) => i !== index) });
+  };
+
+  const addDynamicSection = () => {
+    setForm({ ...form, dynamicSections: [...(form.dynamicSections || []), { id: '', title: '', content: '', icon: '📄', sectionType: 'text', displayOrder: (form.dynamicSections?.length || 0), isActive: true }] });
+  };
+
+  const deleteDynamicSection = (index) => {
+    setForm({ ...form, dynamicSections: form.dynamicSections.filter((_, i) => i !== index) });
+  };
+
+  const addTrustBadge = () => {
+    setForm({ ...form, trustBadges: [...(form.trustBadges || []), { id: '', label: '', icon: '📦', displayOrder: (form.trustBadges?.length || 0), isActive: true }] });
+  };
+
+  const deleteTrustBadge = (index) => {
+    setForm({ ...form, trustBadges: form.trustBadges.filter((_, i) => i !== index) });
   };
 
   const deleteProduct = async (id) => {
@@ -1058,45 +1142,99 @@ const AdminDashboard = () => {
 
         {/* Categories */}
         {tab === 'categories' && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-800">Categories ({filteredCategories.length})</h2>
-              <button
-                onClick={() => openCategory(null)}
-                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
-              >
-                <Plus size={16} /> Add
-              </button>
+          <div className="space-y-6">
+            {/* Categories Section */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-800">Categories ({filteredCategories.length})</h2>
+                <button
+                  onClick={() => openCategory(null)}
+                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
+                >
+                  <Plus size={16} /> Add Category
+                </button>
+              </div>
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredCategories.map((c) => (
+                  <div key={c.id} className="border border-gray-100 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                      {c.imageUrl ? <img src={c.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-800 truncate">{c.name}</p>
+                      <p className="text-xs text-gray-500">Order: {c.displayOrder}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openCategory(c)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                        <Pencil size={16} />
+                      </button>
+                      <button onClick={() => deleteCategory(c.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Search categories..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCategories.map((c) => (
-                <div key={c.id} className="border border-gray-100 rounded-xl p-4 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                    {c.imageUrl ? <img src={c.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-800 truncate">{c.name}</p>
-                    <p className="text-xs text-gray-500">Order: {c.displayOrder}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => openCategory(c)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                      <Pencil size={16} />
-                    </button>
-                    <button onClick={() => deleteCategory(c.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+
+            {/* Subcategories Section */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-800">Subcategories ({subCategories.length})</h2>
+                <button
+                  onClick={() => openSubCategory(null)}
+                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
+                >
+                  <Plus size={16} /> Add Subcategory
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Name</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Parent Category</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Display Order</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {subCategories.map((sc) => (
+                      <tr key={sc.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                              {sc.imageUrl ? <img src={sc.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
+                            </div>
+                            <span className="font-medium text-gray-800">{sc.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{categoryName(sc.parentCategoryId)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{sc.displayOrder}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => openSubCategory(sc)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                              <Pencil size={16} />
+                            </button>
+                            <button onClick={() => deleteSubCategory(sc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -2102,7 +2240,10 @@ const AdminDashboard = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
               <select
                 value={form.categoryId || ''}
-                onChange={(e) => setField('categoryId', e.target.value)}
+                onChange={(e) => {
+                  setField('categoryId', e.target.value);
+                  setField('subCategoryId', ''); // Reset subcategory when category changes
+                }}
                 required
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               >
@@ -2112,12 +2253,28 @@ const AdminDashboard = () => {
                 ))}
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
+              <select
+                value={form.subCategoryId || ''}
+                onChange={(e) => setField('subCategoryId', e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              >
+                <option value="">Select subcategory</option>
+                {subCategories.filter(sc => sc.parentCategoryId === form.categoryId).map((sc) => (
+                  <option key={sc.id} value={sc.id}>{sc.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
                 <Field label="Price" type="number" value={form.price} onChange={(v) => setField('price', v)} required />
               </div>
               <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
                 <Field label="Original Price" type="number" value={form.originalPrice} onChange={(v) => setField('originalPrice', v)} />
+              </div>
+              <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border border-red-100">
+                <Field label="Discount %" type="number" value={form.discountPercentage} onChange={(v) => setField('discountPercentage', v)} />
               </div>
             </div>
             <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
@@ -2414,6 +2571,377 @@ const AdminDashboard = () => {
               </div>
             </div>
 
+            {/* Warranty Section */}
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Warranty Information</label>
+              <input
+                type="text"
+                value={form.warranty || ''}
+                onChange={(e) => setField('warranty', e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all mb-3"
+                placeholder="e.g., 1 Year Manufacturer Warranty"
+              />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Warranty Icon (Emoji or Image URL)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={form.warrantyIcon || ''}
+                  onChange={(e) => setField('warrantyIcon', e.target.value)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  placeholder="🛡️ or image URL"
+                />
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('warrantyIconUpload').click()}
+                  className="px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors"
+                >
+                  Upload
+                </button>
+                <input
+                  type="file"
+                  id="warrantyIconUpload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setField('warrantyIcon', reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </div>
+              {form.warrantyIcon && (
+                <div className="mt-2 flex items-center gap-2">
+                  {form.warrantyIcon.startsWith('data:') ? (
+                    <img src={form.warrantyIcon} alt="Warranty icon" className="w-8 h-8 object-contain" />
+                  ) : (
+                    <span className="text-2xl">{form.warrantyIcon}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setField('warrantyIcon', '')}
+                    className="text-red-500 hover:text-red-600 text-sm"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Specifications Section */}
+            <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Product Specifications</h3>
+                <button type="button" onClick={addSpecification} className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 transition-colors">
+                  + Add Specification
+                </button>
+              </div>
+              <div className="space-y-2">
+                {form.specifications?.map((spec, index) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={spec.name}
+                      onChange={(e) => {
+                        const updatedSpecs = [...form.specifications];
+                        updatedSpecs[index] = { ...updatedSpecs[index], name: e.target.value };
+                        setForm({ ...form, specifications: updatedSpecs });
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                      placeholder="Specification name (e.g., Display)"
+                    />
+                    <input
+                      type="text"
+                      value={spec.value}
+                      onChange={(e) => {
+                        const updatedSpecs = [...form.specifications];
+                        updatedSpecs[index] = { ...updatedSpecs[index], value: e.target.value };
+                        setForm({ ...form, specifications: updatedSpecs });
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                      placeholder="Value (e.g., 6.5 inches)"
+                    />
+                    <button type="button" onClick={() => deleteSpecification(index)} className="text-red-500 hover:text-red-600 p-2">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {(!form.specifications || form.specifications.length === 0) && (
+                  <p className="text-sm text-gray-500 italic">No specifications added yet.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Dynamic Sections Section */}
+            <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-4 border border-violet-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Dynamic Sections (Warranty, Shipping, etc.)</h3>
+                <button type="button" onClick={addDynamicSection} className="text-xs bg-violet-500 text-white px-3 py-1.5 rounded-lg hover:bg-violet-600 transition-colors">
+                  + Add Section
+                </button>
+              </div>
+              <div className="space-y-3">
+                {form.dynamicSections?.map((section, index) => (
+                  <div key={index} className="bg-white p-3 rounded-lg border border-violet-200">
+                    <div className="flex gap-2 mb-2">
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="text"
+                          value={section.icon}
+                          onChange={(e) => {
+                            const updatedSections = [...form.dynamicSections];
+                            updatedSections[index] = { ...updatedSections[index], icon: e.target.value };
+                            setForm({ ...form, dynamicSections: updatedSections });
+                          }}
+                          className="w-12 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm text-center"
+                          placeholder="📄"
+                          title="Icon (emoji)"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById(`sectionIconUpload${index}`).click()}
+                          className="w-12 px-2 py-1 bg-violet-500 text-white rounded text-xs hover:bg-violet-600"
+                        >
+                          Upload
+                        </button>
+                        <input
+                          type="file"
+                          id={`sectionIconUpload${index}`}
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                const updatedSections = [...form.dynamicSections];
+                                updatedSections[index] = { ...updatedSections[index], icon: reader.result };
+                                setForm({ ...form, dynamicSections: updatedSections });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={section.title}
+                        onChange={(e) => {
+                          const updatedSections = [...form.dynamicSections];
+                          updatedSections[index] = { ...updatedSections[index], title: e.target.value };
+                          setForm({ ...form, dynamicSections: updatedSections });
+                        }}
+                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
+                        placeholder="Section title (e.g., Warranty)"
+                      />
+                      <button type="button" onClick={() => deleteDynamicSection(index)} className="text-red-500 hover:text-red-600 p-2">
+                        <X size={16} />
+                      </button>
+                    </div>
+                    {section.icon && (
+                      <div className="flex items-center gap-2 mb-2">
+                        {section.icon.startsWith('data:') ? (
+                          <img src={section.icon} alt="Section icon" className="w-6 h-6 object-contain" />
+                        ) : (
+                          <span className="text-xl">{section.icon}</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updatedSections = [...form.dynamicSections];
+                            updatedSections[index] = { ...updatedSections[index], icon: '' };
+                            setForm({ ...form, dynamicSections: updatedSections });
+                          }}
+                          className="text-red-500 hover:text-red-600 text-xs"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                    <textarea
+                      value={section.content}
+                      onChange={(e) => {
+                        const updatedSections = [...form.dynamicSections];
+                        updatedSections[index] = { ...updatedSections[index], content: e.target.value };
+                        setForm({ ...form, dynamicSections: updatedSections });
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
+                      placeholder="Section content..."
+                      rows={2}
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <select
+                        value={section.sectionType}
+                        onChange={(e) => {
+                          const updatedSections = [...form.dynamicSections];
+                          updatedSections[index] = { ...updatedSections[index], sectionType: e.target.value };
+                          setForm({ ...form, dynamicSections: updatedSections });
+                        }}
+                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
+                      >
+                        <option value="text">Text</option>
+                        <option value="list">List</option>
+                        <option value="table">Table</option>
+                      </select>
+                      <input
+                        type="number"
+                        value={section.displayOrder}
+                        onChange={(e) => {
+                          const updatedSections = [...form.dynamicSections];
+                          updatedSections[index] = { ...updatedSections[index], displayOrder: parseInt(e.target.value) };
+                          setForm({ ...form, dynamicSections: updatedSections });
+                        }}
+                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
+                        placeholder="Order"
+                        title="Display order"
+                      />
+                      <label className="flex items-center gap-1 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={section.isActive}
+                          onChange={(e) => {
+                            const updatedSections = [...form.dynamicSections];
+                            updatedSections[index] = { ...updatedSections[index], isActive: e.target.checked };
+                            setForm({ ...form, dynamicSections: updatedSections });
+                          }}
+                          className="w-4 h-4 text-violet-600 rounded"
+                        />
+                        Active
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                {(!form.dynamicSections || form.dynamicSections.length === 0) && (
+                  <p className="text-sm text-gray-500 italic">No dynamic sections added yet. Add sections like Warranty, Shipping Info, Returns, etc.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Trust Badges Section */}
+            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl p-4 border border-cyan-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Trust Badges (Free Shipping, Secure Payment, etc.)</h3>
+                <button type="button" onClick={addTrustBadge} className="text-xs bg-cyan-500 text-white px-3 py-1.5 rounded-lg hover:bg-cyan-600 transition-colors">
+                  + Add Badge
+                </button>
+              </div>
+              <div className="space-y-3">
+                {form.trustBadges?.map((badge, index) => (
+                  <div key={index} className="bg-white p-3 rounded-lg border border-cyan-200">
+                    <div className="flex gap-2 mb-2">
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="text"
+                          value={badge.icon}
+                          onChange={(e) => {
+                            const updatedBadges = [...form.trustBadges];
+                            updatedBadges[index] = { ...updatedBadges[index], icon: e.target.value };
+                            setForm({ ...form, trustBadges: updatedBadges });
+                          }}
+                          className="w-12 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-cyan-500 text-sm text-center"
+                          placeholder="📦"
+                          title="Icon (emoji)"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById(`badgeIconUpload${index}`).click()}
+                          className="w-12 px-2 py-1 bg-cyan-500 text-white rounded text-xs hover:bg-cyan-600"
+                        >
+                          Upload
+                        </button>
+                        <input
+                          type="file"
+                          id={`badgeIconUpload${index}`}
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                const updatedBadges = [...form.trustBadges];
+                                updatedBadges[index] = { ...updatedBadges[index], icon: reader.result };
+                                setForm({ ...form, trustBadges: updatedBadges });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={badge.label}
+                        onChange={(e) => {
+                          const updatedBadges = [...form.trustBadges];
+                          updatedBadges[index] = { ...updatedBadges[index], label: e.target.value };
+                          setForm({ ...form, trustBadges: updatedBadges });
+                        }}
+                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-cyan-500 text-sm"
+                        placeholder="Badge label (e.g., Free shipping over ₹100)"
+                      />
+                      <button type="button" onClick={() => deleteTrustBadge(index)} className="text-red-500 hover:text-red-600 p-2">
+                        <X size={16} />
+                      </button>
+                    </div>
+                    {badge.icon && (
+                      <div className="flex items-center gap-2 mb-2">
+                        {badge.icon.startsWith('data:') ? (
+                          <img src={badge.icon} alt="Badge icon" className="w-6 h-6 object-contain" />
+                        ) : (
+                          <span className="text-xl">{badge.icon}</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updatedBadges = [...form.trustBadges];
+                            updatedBadges[index] = { ...updatedBadges[index], icon: '' };
+                            setForm({ ...form, trustBadges: updatedBadges });
+                          }}
+                          className="text-red-500 hover:text-red-600 text-xs"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={badge.displayOrder}
+                        onChange={(e) => {
+                          const updatedBadges = [...form.trustBadges];
+                          updatedBadges[index] = { ...updatedBadges[index], displayOrder: parseInt(e.target.value) };
+                          setForm({ ...form, trustBadges: updatedBadges });
+                        }}
+                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-cyan-500 text-sm"
+                        placeholder="Order"
+                        title="Display order"
+                      />
+                      <label className="flex items-center gap-1 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={badge.isActive}
+                          onChange={(e) => {
+                            const updatedBadges = [...form.trustBadges];
+                            updatedBadges[index] = { ...updatedBadges[index], isActive: e.target.checked };
+                            setForm({ ...form, trustBadges: updatedBadges });
+                          }}
+                          className="w-4 h-4 text-cyan-600 rounded"
+                        />
+                        Active
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                {(!form.trustBadges || form.trustBadges.length === 0) && (
+                  <p className="text-sm text-gray-500 italic">No trust badges added yet. Add badges like Free Shipping, Secure Payment, Easy Returns, etc.</p>
+                )}
+              </div>
+            </div>
+
             <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl font-semibold disabled:opacity-60 hover:shadow-lg transition-all">
               {saving ? 'Saving...' : 'Save Product'}
             </button>
@@ -2468,7 +2996,7 @@ const AdminDashboard = () => {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
                 <input
@@ -2486,6 +3014,17 @@ const AdminDashboard = () => {
                   value={variantModal.data?.originalPrice || ''}
                   onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, originalPrice: e.target.value ? parseFloat(e.target.value) : null } })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
+                <input
+                  type="number"
+                  value={variantModal.data?.discountPercentage || 0}
+                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, discountPercentage: parseFloat(e.target.value) || 0 } })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  min="0"
+                  max="100"
                 />
               </div>
             </div>
@@ -2571,6 +3110,90 @@ const AdminDashboard = () => {
             </label>
             <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold disabled:opacity-60">
               {saving ? 'Saving...' : 'Save Category'}
+            </button>
+          </form>
+        </Modal>
+      )}
+
+      {/* Subcategory Modal */}
+      {subCategoryModal.open && (
+        <Modal title={subCategoryModal.data ? 'Edit Subcategory' : 'Add Subcategory'} onClose={() => setSubCategoryModal({ open: false, data: null })}>
+          <form onSubmit={saveSubCategory} className="space-y-4">
+            <Field label="Name" value={form.name} onChange={(v) => setField('name', v)} required />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Parent Category</label>
+              <select
+                value={form.parentCategoryId || ''}
+                onChange={(e) => setField('parentCategoryId', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                required
+              >
+                <option value="">Select a category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={form.description || ''}
+                onChange={(e) => setField('description', e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory Image</label>
+              <div
+                onDrop={handleCategoryImageDrop}
+                onDragOver={(e) => e.preventDefault()}
+                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-500 transition-colors cursor-pointer"
+              >
+                {categoryImagePreview ? (
+                  <div className="relative inline-block">
+                    <img src={categoryImagePreview} alt="Subcategory preview" className="h-32 object-contain mx-auto" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategoryImagePreview(null);
+                        setForm({ ...form, imageUrl: '' });
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                    >
+                      X
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <p className="mt-1 text-sm text-gray-600">Drop subcategory image here or click to upload</p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCategoryImageUpload}
+                  className="hidden"
+                  id="subcategory-image-upload"
+                />
+                <label
+                  htmlFor="subcategory-image-upload"
+                  className="mt-2 inline-block text-sm text-purple-600 hover:text-purple-700 cursor-pointer"
+                >
+                  Choose file
+                </label>
+              </div>
+            </div>
+            <Field label="Display Order" type="number" value={form.displayOrder} onChange={(v) => setField('displayOrder', v)} />
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.isActive !== false} onChange={(e) => setField('isActive', e.target.checked)} />
+              Active
+            </label>
+            <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold disabled:opacity-60">
+              {saving ? 'Saving...' : 'Save Subcategory'}
             </button>
           </form>
         </Modal>

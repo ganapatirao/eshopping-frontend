@@ -21,6 +21,7 @@ export const CartProvider = ({ children }) => {
     freeShippingThreshold: 100,
     shippingCost: 10,
   });
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -43,9 +44,26 @@ export const CartProvider = ({ children }) => {
       });
   }, []);
 
-  const addToCart = (product, quantity = 1) => {
+  const addToCart = (product, quantity = 1, selectedVariant = null) => {
     setItems((prev) => {
-      const idx = prev.findIndex((i) => i.productId === product.id);
+      // Calculate final price with discounts
+      let finalPrice = product.price;
+      let discountPercentage = product.discountPercentage || 0;
+      let originalPrice = product.originalPrice || product.price;
+
+      // If variant is selected, use variant pricing and discount
+      if (selectedVariant) {
+        finalPrice = selectedVariant.price;
+        originalPrice = selectedVariant.originalPrice || selectedVariant.price;
+        discountPercentage = selectedVariant.discountPercentage || product.discountPercentage || 0;
+      }
+
+      // Apply discount percentage to get final price with rounding to whole number
+      if (discountPercentage > 0) {
+        finalPrice = Math.round(originalPrice * (1 - discountPercentage / 100));
+      }
+
+      const idx = prev.findIndex((i) => i.productId === product.id && i.variantId === selectedVariant?.id);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], quantity: next[idx].quantity + quantity };
@@ -55,15 +73,21 @@ export const CartProvider = ({ children }) => {
         ...prev,
         {
           productId: product.id,
+          variantId: selectedVariant?.id || null,
           name: product.name,
           description: product.description,
-          imageUrl: product.imageUrl,
-          price: product.price,
-          originalPrice: product.originalPrice,
+          imageUrl: selectedVariant?.imageUrls?.[0] || product.imageUrl,
+          price: finalPrice,
+          originalPrice: originalPrice,
+          discountPercentage: discountPercentage,
+          selectedVariant: selectedVariant,
           quantity,
         },
       ];
     });
+    // Show toast notification
+    setToast({ message: 'Added to cart!', type: 'success' });
+    setTimeout(() => setToast(null), 2000);
   };
 
   const updateQuantity = (productId, quantity) => {
@@ -106,6 +130,7 @@ export const CartProvider = ({ children }) => {
     updateQuantity,
     removeItem,
     clearCart,
+    toast,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

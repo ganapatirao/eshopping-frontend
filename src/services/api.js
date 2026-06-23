@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// const API_BASE_URL = 'http://localhost:5227/api';
 const API_BASE_URL = 'https://ganeshtech2017.runasp.net/api';
 
 const api = axios.create({
@@ -42,10 +43,17 @@ export const categoriesAPI = {
   create: (data) => api.post('/categories', data),
   update: (id, data) => api.put(`/categories/${id}`, data),
   remove: (id) => api.delete(`/categories/${id}`),
+  // Subcategory endpoints
+  getSubCategories: () => api.get('/categories/subcategories'),
+  getSubCategoryById: (id) => api.get(`/categories/subcategories/${id}`),
+  getSubCategoriesByCategory: (categoryId) => api.get(`/categories/subcategories/by-category/${categoryId}`),
+  createSubCategory: (data) => api.post('/categories/subcategories', data),
+  updateSubCategory: (id, data) => api.put(`/categories/subcategories/${id}`, data),
+  removeSubCategory: (id) => api.delete(`/categories/subcategories/${id}`),
 };
 
 export const productsAPI = {
-  getAll: (categoryId) => api.get('/products', { params: { categoryId } }),
+  getAll: (categoryId, subCategoryId) => api.get('/products', { params: { categoryId, subCategoryId } }),
   getAllAdmin: () => api.get('/products/all'),
   getById: (id) => api.get(`/products/${id}`),
   getFeatured: () => api.get('/products/featured'),
