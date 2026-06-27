@@ -1,4 +1,6 @@
-import { X, Plus, Edit, Package } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Plus, Edit, Package, AlertCircle } from 'lucide-react';
+import { productAPI } from '../../services/api';
 
 const ProductModal = ({ 
   show, 
@@ -8,10 +10,135 @@ const ProductModal = ({
   productForm, 
   setProductForm, 
   categories,
+  subCategories,
   handleImageDrop,
   convertToBase64,
-  handleRemoveImage 
+  handleRemoveImage,
+  showToast
 }) => {
+  const [validationRules, setValidationRules] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({});
+  const [touchedFields, setTouchedFields] = useState({});
+  const [rulesLoading, setRulesLoading] = useState(false);
+
+  useEffect(() => {
+    if (show) {
+      loadValidationRules();
+      setValidationErrors({});
+      setTouchedFields({});
+    }
+  }, [show]);
+
+  const loadValidationRules = async () => {
+    try {
+      setRulesLoading(true);
+      const response = await productAPI.getValidationRules();
+      if (response.data.success && response.data.rules) {
+        setValidationRules(response.data.rules);
+      }
+    } catch (error) {
+    } finally {
+      setRulesLoading(false);
+    }
+  };
+
+  const validateField = (fieldName, value) => {
+    if (!validationRules) return '';
+
+    // Handle both camelCase and PascalCase field names
+    const pascalFieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+    const rules = validationRules[fieldName] || validationRules[pascalFieldName];
+    
+    if (!rules) return '';
+
+    // Handle backend rule structure (PascalCase with single ErrorMessage)
+    const isRequired = rules.Required !== undefined ? rules.Required : rules.required;
+    const errorMessage = rules.ErrorMessage || rules.errorMessage;
+    
+    if (isRequired && (!value || value === '')) {
+      return errorMessage || `${fieldName} is required`;
+    }
+
+    const minLength = rules.MinLength !== undefined ? rules.MinLength : rules.minLength;
+    const maxLength = rules.MaxLength !== undefined ? rules.MaxLength : rules.maxLength;
+    
+    if (minLength && value && value.length < minLength) {
+      return errorMessage || `${fieldName} must be at least ${minLength} characters`;
+    }
+
+    if (maxLength && value && value.length > maxLength) {
+      return errorMessage || `${fieldName} must not exceed ${maxLength} characters`;
+    }
+
+    const pattern = rules.Pattern !== undefined ? rules.Pattern : rules.pattern;
+    if (pattern && value && !new RegExp(pattern).test(value)) {
+      return errorMessage || `${fieldName} format is invalid`;
+    }
+
+    const minValue = rules.MinValue !== undefined ? rules.MinValue : rules.minValue;
+    if (minValue && value && parseFloat(value) < minValue) {
+      return errorMessage || `${fieldName} must be at least ${minValue}`;
+    }
+
+    const maxValue = rules.MaxValue !== undefined ? rules.MaxValue : rules.maxValue;
+    if (maxValue && value && parseFloat(value) > maxValue) {
+      return errorMessage || `${fieldName} must not exceed ${maxValue}`;
+    }
+
+    return '';
+  };
+
+  const handleFieldBlur = (fieldName, value) => {
+    setTouchedFields(prev => ({ ...prev, [fieldName]: true }));
+    const error = validateField(fieldName, value);
+    setValidationErrors(prev => ({ ...prev, [fieldName]: error }));
+  };
+
+  const handleFieldMouseOut = (fieldName, value) => {
+    if (touchedFields[fieldName]) {
+      const error = validateField(fieldName, value);
+      setValidationErrors(prev => ({ ...prev, [fieldName]: error }));
+    }
+  };
+
+  const handleFieldChange = (fieldName, value) => {
+    setProductForm({ ...productForm, [fieldName]: value });
+    if (touchedFields[fieldName]) {
+      const error = validateField(fieldName, value);
+      setValidationErrors(prev => ({ ...prev, [fieldName]: error }));
+    }
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    // Validate all fields based on server rules
+    if (validationRules) {
+      Object.keys(validationRules).forEach(fieldName => {
+        const value = productForm[fieldName];
+        const error = validateField(fieldName, value);
+        if (error) errors[fieldName] = error;
+      });
+    }
+    
+    setValidationErrors(errors);
+    setTouchedFields(validationRules ? Object.keys(validationRules).reduce((acc, field) => ({ ...acc, [field]: true }), {}) : {});
+    
+    // Show toast with validation errors if any
+    if (Object.keys(errors).length > 0 && showToast) {
+      const errorMessages = Object.values(errors).join(', ');
+      showToast(`Validation errors: ${errorMessages}`, 'error');
+    }
+    
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSaveClick = () => {
+    if (validateForm()) {
+      onSave();
+    }
+  };
+
   if (!show) return null;
 
   return (
@@ -44,116 +171,215 @@ const ProductModal = ({
         
         <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-5">
           {/* Product Name & Category */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <span className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full"></span>
-                Product Name
+                Product Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="text"
                   value={productForm.name}
-                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-11 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
+                  onBlur={() => handleFieldBlur('name', productForm.name)}
+                  onMouseOut={() => handleFieldMouseOut('name', productForm.name)}
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 pl-4 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                    validationErrors.name && touchedFields.name
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+                  }`}
                   placeholder="Product name"
                 />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">📦</span>
+                {validationErrors.name && touchedFields.name && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <AlertCircle size={16} className="text-red-500" />
+                  </div>
+                )}
               </div>
+              {validationErrors.name && touchedFields.name && (
+                <div className="flex items-center gap-2 mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs text-red-700 font-medium">{validationErrors.name}</span>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <span className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full"></span>
-                Category
+                Category <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <select
-                  value={productForm.category}
-                  onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-11 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all appearance-none bg-white"
+                  value={productForm.categoryId}
+                  onChange={(e) => handleFieldChange('categoryId', e.target.value)}
+                  onBlur={() => handleFieldBlur('categoryId', productForm.categoryId)}
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 pl-12 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all appearance-none bg-white ${
+                    validationErrors.categoryId && touchedFields.categoryId
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+                  }`}
                 >
                   <option value="">Select a category</option>
                   {categories.map((category) => (
-                    <option key={category.id} value={category.name}>
+                    <option key={category.id} value={category.id}>
                       {category.displayName || category.name}
                     </option>
                   ))}
                 </select>
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">📁</span>
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">▼</span>
+                {validationErrors.categoryId && touchedFields.categoryId && (
+                  <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                    <AlertCircle size={16} className="text-red-500" />
+                  </div>
+                )}
               </div>
+              {validationErrors.categoryId && touchedFields.categoryId && (
+                <div className="flex items-center gap-2 mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs text-red-700 font-medium">{validationErrors.categoryId}</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* SubCategory & Stock */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <span className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full"></span>
-                SubCategory
+                SubCategory <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
-                  type="text"
-                  value={productForm.subCategory}
-                  onChange={(e) => setProductForm({ ...productForm, subCategory: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-11 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                  placeholder="Subcategory name"
-                />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">📂</span>
+                <select
+                  value={productForm.subCategoryId}
+                  onChange={(e) => handleFieldChange('subCategoryId', e.target.value)}
+                  onBlur={() => handleFieldBlur('subCategoryId', productForm.subCategoryId)}
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 pl-12 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all appearance-none bg-white ${
+                    validationErrors.subCategoryId && touchedFields.subCategoryId
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+                  }`}
+                >
+                  <option value="">Select a subcategory</option>
+                  {subCategories
+                    .filter(sc => !productForm.categoryId || sc.categoryId === productForm.categoryId)
+                    .map((subCategory) => (
+                      <option key={subCategory.id} value={subCategory.id}>
+                        {subCategory.displayName || subCategory.name}
+                      </option>
+                    ))}
+                </select>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">▼</span>
+                {validationErrors.subCategoryId && touchedFields.subCategoryId && (
+                  <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                    <AlertCircle size={16} className="text-red-500" />
+                  </div>
+                )}
               </div>
+              {validationErrors.subCategoryId && touchedFields.subCategoryId && (
+                <div className="flex items-center gap-2 mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs text-red-700 font-medium">{validationErrors.subCategoryId}</span>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <span className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full"></span>
-                Stock
+                Stock <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="number"
                   value={productForm.stock}
-                  onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-11 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                  onChange={(e) => handleFieldChange('stock', e.target.value)}
+                  onBlur={() => handleFieldBlur('stock', productForm.stock)}
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 pl-4 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                    validationErrors.stock && touchedFields.stock
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+                  }`}
                   placeholder="0"
                 />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">📊</span>
+                {validationErrors.stock && touchedFields.stock && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <AlertCircle size={16} className="text-red-500" />
+                  </div>
+                )}
               </div>
+              {validationErrors.stock && touchedFields.stock && (
+                <div className="flex items-center gap-2 mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs text-red-700 font-medium">{validationErrors.stock}</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Price & Original Price */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <span className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full"></span>
-                Price (₹)
+                Price (₹) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="number"
                   value={productForm.price}
-                  onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-11 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                  onChange={(e) => handleFieldChange('price', e.target.value)}
+                  onBlur={() => handleFieldBlur('price', productForm.price)}
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 pl-4 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                    validationErrors.price && touchedFields.price
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+                  }`}
                   placeholder="0"
                 />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">💰</span>
+                {validationErrors.price && touchedFields.price && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <AlertCircle size={16} className="text-red-500" />
+                  </div>
+                )}
               </div>
+              {validationErrors.price && touchedFields.price && (
+                <div className="flex items-center gap-2 mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs text-red-700 font-medium">{validationErrors.price}</span>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <span className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full"></span>
-                Original Price (₹)
+                Original Price (₹) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="number"
                   value={productForm.originalPrice}
-                  onChange={(e) => setProductForm({ ...productForm, originalPrice: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pl-11 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                  onChange={(e) => handleFieldChange('originalPrice', e.target.value)}
+                  onBlur={() => handleFieldBlur('originalPrice', productForm.originalPrice)}
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 pl-4 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                    validationErrors.originalPrice && touchedFields.originalPrice
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+                  }`}
                   placeholder="0"
                 />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🏷️</span>
+                {validationErrors.originalPrice && touchedFields.originalPrice && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <AlertCircle size={16} className="text-red-500" />
+                  </div>
+                )}
               </div>
+              {validationErrors.originalPrice && touchedFields.originalPrice && (
+                <div className="flex items-center gap-2 mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs text-red-700 font-medium">{validationErrors.originalPrice}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -161,15 +387,26 @@ const ProductModal = ({
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
               <span className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full"></span>
-              Description
+              Description <span className="text-red-500">*</span>
             </label>
             <textarea
               value={productForm.description}
-              onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-              className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all resize-none"
+              onChange={(e) => handleFieldChange('description', e.target.value)}
+              onBlur={() => handleFieldBlur('description', productForm.description)}
+              className={`w-full px-3 sm:px-4 py-2 sm:py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all resize-none ${
+                validationErrors.description && touchedFields.description
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
+                  : 'border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+              }`}
               rows={4}
               placeholder="Product description"
             />
+            {validationErrors.description && touchedFields.description && (
+              <div className="flex items-center gap-2 mt-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                <span className="text-xs text-red-700 font-medium">{validationErrors.description}</span>
+              </div>
+            )}
           </div>
 
           {/* Image Upload Field */}
@@ -223,7 +460,7 @@ const ProductModal = ({
           </div>
 
           {/* Toggle Switches */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 pt-2">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 lg:gap-6 pt-2">
             <label className="flex items-center gap-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl cursor-pointer hover:from-green-100 hover:to-emerald-100 transition-all border-2 border-transparent hover:border-green-300">
               <div className="relative">
                 <input
@@ -282,7 +519,7 @@ const ProductModal = ({
             Cancel
           </button>
           <button
-            onClick={onSave}
+            onClick={handleSaveClick}
             className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
           >
             {editingProduct ? <Edit size={18} /> : <Plus size={18} />}
