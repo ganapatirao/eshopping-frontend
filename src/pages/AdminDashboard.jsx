@@ -856,32 +856,6 @@ const AdminDashboard = () => {
 
 
 
-  const handleSeedDatabase = async () => {
-
-    try {
-
-      const response = await seedAPI.seedDatabase();
-
-      if (response.data.success) {
-
-        alert('Database seeded successfully!');
-
-        loadDashboardData();
-
-      }
-
-    } catch (error) {
-
-      console.error('Error seeding database:', error);
-
-      alert('Error seeding database');
-
-    }
-
-  };
-
-
-
   // Category handlers
 
   const handleOpenCategoryModal = async (category = null) => {
@@ -1961,22 +1935,6 @@ const AdminDashboard = () => {
               </div>
 
             </div>
-
-            <button
-
-              onClick={handleSeedDatabase}
-
-              className="bg-white text-purple-600 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-pink-100 transition-colors flex items-center gap-1 sm:gap-2 text-xs sm:text-sm md:text-base"
-
-            >
-
-              <Database size={14} sm:size={16} />
-
-              <span className="hidden sm:inline">Seed Database</span>
-
-              <span className="sm:hidden">Seed</span>
-
-            </button>
 
           </div>
 

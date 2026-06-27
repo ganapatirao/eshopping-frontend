@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://ganeshtech2017.runasp.net/api';
+// const API_BASE_URL = 'https://ganeshtech2017.runasp.net/api';
+const API_BASE_URL = 'http://localhost:5041/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -58,11 +59,6 @@ export const orderAPI = {
   getById: (id) => api.get(`/order/${id}`),
   updateStatus: (id, data) => api.put(`/order/${id}/status`, data),
   updatePayment: (id, data) => api.put(`/order/${id}/payment`, data),
-};
-
-// Seed API
-export const seedAPI = {
-  seedDatabase: () => api.post('/seed'),
 };
 
 // Category API

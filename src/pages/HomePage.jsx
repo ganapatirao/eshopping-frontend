@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { productAPI, seedAPI, categoryAPI, siteConfigAPI } from '../services/api';
+import { productAPI, categoryAPI, siteConfigAPI } from '../services/api';
 import ProductCard from '../components/ProductCard';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, TrendingUp, Star, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -76,17 +76,6 @@ const HomePage = () => {
     }
   };
 
-  const handleSeedDatabase = async () => {
-    try {
-      const response = await seedAPI.seedDatabase();
-      if (response.data.success) {
-        alert('Database seeded successfully!');
-        loadProducts();
-      }
-    } catch (error) {
-      console.error('Error seeding database:', error);
-    }
-  };
 
   const nextSlide = () => {
     if (siteConfig.site?.slideshowImages?.length > 0) {
@@ -200,13 +189,7 @@ const HomePage = () => {
               <h1 className="text-3xl md:text-5xl font-bold mb-4">{siteConfig.site?.name || 'Welcome to HappyShopping Clone'}</h1>
               <p className="text-lg md:text-xl mb-6 opacity-90">{siteConfig.site?.description || 'Your one-stop shop for everything you need'}</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={handleSeedDatabase}
-                  className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-pink-100 transition-colors shadow-lg"
-                >
-                  Seed Database
-                </button>
-                <a href="/shopping" className="bg-transparent border-2 border-white text-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-purple-600 transition-colors text-center">
+                <a href="/shopping" className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-pink-100 transition-colors shadow-lg text-center">
                   Shop Now
                 </a>
               </div>
