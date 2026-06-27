@@ -1,143 +1,149 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { taxAPI } from '../services/api';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { cartAPI } from '../services/api';
 
 const CartContext = createContext(null);
 
-const STORAGE_KEY = 'guestCart';
-
-const readCart = () => {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  } catch {
-    return [];
+export const useCart = () => {
+  const context = useContext(CartContext);
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider');
   }
+  return context;
 };
 
 export const CartProvider = ({ children }) => {
-  const [items, setItems] = useState(readCart);
-  const [taxConfig, setTaxConfig] = useState({
-    taxRate: 0.10,
-    taxName: 'GST',
-    freeShippingThreshold: 100,
-    shippingCost: 10,
-  });
-  const [toast, setToast] = useState(null);
+  const [cart, setCart] = useState(null);
+  const [cartCount, setCartCount] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
-
-  useEffect(() => {
-    // Load tax configuration from backend
-    taxAPI.getConfiguration()
-      .then((res) => {
-        setTaxConfig({
-          taxRate: res.data.taxRate,
-          taxName: res.data.taxName,
-          freeShippingThreshold: res.data.freeShippingThreshold,
-          shippingCost: res.data.shippingCost,
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to load tax configuration:', err);
-        // Use default values if API fails
-      });
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      loadCart(user.id);
+    }
   }, []);
 
-  const addToCart = (product, quantity = 1, selectedVariant = null) => {
-    setItems((prev) => {
-      // Calculate final price with discounts
-      let finalPrice = product.price;
-      let discountPercentage = product.discountPercentage || 0;
-      let originalPrice = product.originalPrice || product.price;
-
-      // If variant is selected, use variant pricing and discount
-      if (selectedVariant) {
-        finalPrice = selectedVariant.price;
-        originalPrice = selectedVariant.originalPrice || selectedVariant.price;
-        discountPercentage = selectedVariant.discountPercentage || product.discountPercentage || 0;
+  const loadCart = async (userId) => {
+    try {
+      setLoading(true);
+      const response = await cartAPI.getCart(userId);
+      if (response.data.success) {
+        setCart(response.data.cart);
+        setCartCount(response.data.cart.items?.length || 0);
       }
-
-      // Apply discount percentage to get final price with rounding to whole number
-      if (discountPercentage > 0) {
-        finalPrice = Math.round(originalPrice * (1 - discountPercentage / 100));
-      }
-
-      const idx = prev.findIndex((i) => i.productId === product.id && i.variantId === selectedVariant?.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + quantity };
-        return next;
-      }
-      return [
-        ...prev,
-        {
-          productId: product.id,
-          variantId: selectedVariant?.id || null,
-          name: product.name,
-          description: product.description,
-          imageUrl: selectedVariant?.imageUrls?.[0] || product.imageUrl,
-          price: finalPrice,
-          originalPrice: originalPrice,
-          discountPercentage: discountPercentage,
-          selectedVariant: selectedVariant,
-          quantity,
-        },
-      ];
-    });
-    // Show toast notification
-    setToast({ message: 'Added to cart!', type: 'success' });
-    setTimeout(() => setToast(null), 2000);
+    } catch (error) {
+      console.error('Error loading cart:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateQuantity = (productId, quantity) => {
-    setItems((prev) => {
-      if (quantity <= 0) return prev.filter((i) => i.productId !== productId);
-      return prev.map((i) => (i.productId === productId ? { ...i, quantity } : i));
-    });
+  const addToCart = async (product, quantity = 1) => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) {
+        alert('Please login to add items to cart');
+        return { success: false };
+      }
+
+      const user = JSON.parse(storedUser);
+      const cartItem = {
+        productId: product.id,
+        variantId: product.variants?.[0]?.id || null,
+        quantity,
+        price: product.price
+      };
+
+      const cartData = {
+        userId: user.id,
+        items: [cartItem],
+        totalAmount: product.price * quantity
+      };
+
+      const response = await cartAPI.addToCart(cartData);
+      if (response.data.success) {
+        setCart(response.data.cart);
+        setCartCount(response.data.cart.items?.length || 0);
+        return { success: true };
+      }
+      return { success: false };
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      return { success: false };
+    }
   };
 
-  const removeItem = (productId) => {
-    setItems((prev) => prev.filter((i) => i.productId !== productId));
+  const removeFromCart = async (productId) => {
+    try {
+      if (!cart) return { success: false };
+      
+      const response = await cartAPI.removeFromCart(cart.id, productId);
+      if (response.data.success) {
+        setCart(response.data.cart);
+        setCartCount(response.data.cart.items?.length || 0);
+        return { success: true };
+      }
+      return { success: false };
+    } catch (error) {
+      console.error('Error removing from cart:', error);
+      return { success: false };
+    }
   };
 
-  const clearCart = () => setItems([]);
+  const updateQuantity = async (productId, quantity) => {
+    try {
+      if (!cart) return { success: false };
 
-  const count = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
-  const subtotal = useMemo(
-    () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-    [items]
-  );
+      const updatedItems = cart.items.map(item =>
+        item.productId === productId ? { ...item, quantity } : item
+      );
 
-  const shipping = useMemo(() => {
-    if (subtotal === 0) return 0;
-    return subtotal >= taxConfig.freeShippingThreshold ? 0 : taxConfig.shippingCost;
-  }, [subtotal, taxConfig]);
+      const updatedCart = {
+        ...cart,
+        items: updatedItems,
+        totalAmount: updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+      };
 
-  const tax = useMemo(() => subtotal * taxConfig.taxRate, [subtotal, taxConfig.taxRate]);
+      const response = await cartAPI.updateCart(cart.id, updatedCart);
+      if (response.data.success) {
+        setCart(response.data.cart);
+        return { success: true };
+      }
+      return { success: false };
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      return { success: false };
+    }
+  };
 
-  const total = useMemo(() => subtotal + shipping + tax, [subtotal, shipping, tax]);
+  const clearCart = async () => {
+    try {
+      if (!cart) return { success: false };
+
+      const response = await cartAPI.clearCart(cart.id);
+      if (response.data.success) {
+        setCart(null);
+        setCartCount(0);
+        return { success: true };
+      }
+      return { success: false };
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      return { success: false };
+    }
+  };
 
   const value = {
-    items,
-    count,
-    subtotal,
-    shipping,
-    tax,
-    total,
-    taxConfig,
+    cart,
+    cartCount,
+    loading,
     addToCart,
+    removeFromCart,
     updateQuantity,
-    removeItem,
     clearCart,
-    toast,
+    loadCart
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
-};
-
-export const useCart = () => {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error('useCart must be used within a CartProvider');
-  return ctx;
 };

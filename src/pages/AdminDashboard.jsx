@@ -1,3782 +1,3086 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  ShieldCheck,
-  Package,
-  Layers,
-  ShoppingBag,
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  LogOut,
-  TrendingUp,
-  Layout,
-  Database,
-  Settings,
-  AlertCircle,
-  CheckCircle,
-  Eye,
-  User,
-  CreditCard,
-  Calendar,
-  Box,
-  MapPin as MapPinIcon,
-} from 'lucide-react';
-import { productsAPI, categoriesAPI, ordersAPI, layoutAPI, seedAPI, imageAPI, usersAPI } from '../services/api';
+import { useState, useEffect, useRef } from 'react';
+
 import { useAuth } from '../context/AuthContext';
-import { formatPrice } from '../utils/format';
-import AdminOverview from '../components/admin/AdminOverview';
 
-const ORDER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+import { useNavigate } from 'react-router-dom';
 
-const emptyProduct = {
-  name: '',
-  description: '',
-  categoryId: '',
-  price: '',
-  originalPrice: '',
-  imageUrl: '',
-  stock: 0,
-  rating: 0,
-  reviewCount: 0,
-  isFeatured: false,
-  isActive: true,
-  availableColors: [],
-  availableSizes: [],
-  variants: [],
-  warranty: '',
-  warrantyIcon: '',
-  specifications: [],
-  dynamicSections: [],
-  trustBadges: [],
-};
+import { productAPI, vendorAPI, orderAPI, seedAPI, siteConfigAPI, categoryAPI, subCategoryAPI, userAPI, validationRulesAPI } from '../services/api';
 
-const emptyCategory = {
-  name: '',
-  description: '',
-  imageUrl: '',
-  parentCategoryId: '',
-  displayOrder: 0,
-  isActive: true,
-};
+import { 
+
+  LayoutDashboard, 
+
+  Package, 
+
+  Users, 
+
+  ShoppingCart, 
+
+  Settings, 
+
+  TrendingUp,
+
+  DollarSign,
+
+  Plus,
+
+  Edit,
+
+  Trash2,
+
+  Menu,
+
+  X,
+
+  CheckCircle,
+
+  XCircle,
+
+  Database,
+
+  Folder,
+
+  FolderOpen,
+
+  UserCheck,
+
+  Shield,
+
+  Power,
+
+  Eye,
+
+  Camera,
+
+  CreditCard,
+
+  MapPin,
+
+  Building,
+
+  FileText
+
+} from 'lucide-react';
+
+
+
+import OverviewStats from '../components/admin/OverviewStats';
+
+import ProductsSection from '../components/admin/ProductsSection';
+
+import CategoriesSection from '../components/admin/categories/CategoriesSection';
+
+import SubCategoriesSection from '../components/admin/subcategories/SubCategoriesSection';
+
+import VendorsSection from '../components/admin/VendorsSection';
+
+import OrdersSection from '../components/admin/OrdersSection';
+
+import UsersSection from '../components/admin/users/UsersSection';
+
+import SiteConfiguration from '../components/admin/site-config/SiteConfiguration';
+
+import SettingsSection from '../components/admin/SettingsSection';
+
+import ProductModal from '../components/admin/ProductModal';
+
+import CategoryModal from '../components/admin/categories/CategoryModal';
+
+import SubCategoryModal from '../components/admin/subcategories/SubCategoryModal';
+
+import VendorModal from '../components/admin/VendorModal';
+
+import UserModal from '../components/admin/users/UserModal';
+
+import DeleteConfirmationModal from '../components/admin/DeleteConfirmationModal';
+
+import Toast from '../components/Toast';
+
+
 
 const AdminDashboard = () => {
-  const { user, isAdmin, logout, unlockAccount, lockedAccounts } = useAuth();
+
+  const { user, isAdmin, logout } = useAuth();
+
   const navigate = useNavigate();
 
-  const [tab, setTab] = useState('overview');
+  const userModalRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const [stats, setStats] = useState({
+
+    totalProducts: 0,
+
+    totalVendors: 0,
+
+    totalUsers: 0,
+
+    totalOrders: 0,
+
+    totalRevenue: 0
+
+  });
+
   const [products, setProducts] = useState([]);
+
+  const [vendors, setVendors] = useState([]);
+
   const [categories, setCategories] = useState([]);
+
   const [subCategories, setSubCategories] = useState([]);
+
   const [orders, setOrders] = useState([]);
+
+  const [users, setUsers] = useState([]);
+
   const [loading, setLoading] = useState(true);
 
-  const [productModal, setProductModal] = useState({ open: false, data: null });
-  const [categoryModal, setCategoryModal] = useState({ open: false, data: null });
-  const [subCategoryModal, setSubCategoryModal] = useState({ open: false, data: null });
-  const [form, setForm] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [variantModal, setVariantModal] = useState({ open: false, data: null, index: null });
-  const [dragOverColor, setDragOverColor] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const [headerData, setHeaderData] = useState(null);
-  const [footerData, setFooterData] = useState(null);
-  const [seeding, setSeeding] = useState(false);
-  const [menuItemModal, setMenuItemModal] = useState({ open: false, data: null, index: null });
-  const [iconPreview, setIconPreview] = useState(null);
-  const [subMenuModal, setSubMenuModal] = useState({ open: false, data: null, index: null });
-  const [subMenuIconPreview, setSubMenuIconPreview] = useState(null);
-  const [logoPreview, setLogoPreview] = useState(null);
-  const [deleteModal, setDeleteModal] = useState({ open: false, item: null, type: null, onConfirm: null });
-  const [footerSectionModal, setFooterSectionModal] = useState({ open: false, data: null, index: null });
-  const [footerLinkModal, setFooterLinkModal] = useState({ open: false, data: null, sectionIndex: null, linkIndex: null });
-  const [productImagePreview, setProductImagePreview] = useState(null);
-  const [categoryImagePreview, setCategoryImagePreview] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [userModal, setUserModal] = useState({ open: false, data: null });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterRole, setFilterRole] = useState('all');
-  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null });
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [orderStatusFilter, setOrderStatusFilter] = useState('All');
-  const [orderDateFrom, setOrderDateFrom] = useState('');
-  const [orderDateTo, setOrderDateTo] = useState('');
-  const [orderIdSearch, setOrderIdSearch] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState({ type: '', id: '', name: '' });
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  
+
+  // Filter states
+
+  const [categoryFilter, setCategoryFilter] = useState({ search: '', status: '' });
+
+  const [subCategoryFilter, setSubCategoryFilter] = useState({ search: '', categoryId: '', status: '' });
+
+  const [productFilter, setProductFilter] = useState({ search: '', category: '', status: '' });
+
+  const [vendorFilter, setVendorFilter] = useState({ search: '', status: '' });
+
+  const [orderFilter, setOrderFilter] = useState({ search: '', status: '' });
+
+  const [userFilter, setUserFilter] = useState({ search: '', role: '', status: '' });
+
+  
+
+  // Validation rules
+
+  const defaultValidationRules = {
+
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+
+    phone: /^[0-9]{10}$/,
+
+    required: {
+
+      message: 'This field is required'
+
+    },
+
+    minLength: (min) => ({
+
+      message: `Minimum length is ${min} characters`
+
+    }),
+
+    maxLength: (max) => ({
+
+      message: `Maximum length is ${max} characters`
+
+    })
+
+  };
+
+  
+
+  const [validationErrors, setValidationErrors] = useState({});
+
+  
+
+  // Validation rules from backend
+
+  const [backendValidationRules, setBackendValidationRules] = useState({});
+
+  const [categoryValidationRules, setCategoryValidationRules] = useState({});
+
+  const [subCategoryValidationRules, setSubCategoryValidationRules] = useState({});
+
+  
+
+  // Modal states
+
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+
+  const [showSubCategoryModal, setShowSubCategoryModal] = useState(false);
+
+  const [showProductModal, setShowProductModal] = useState(false);
+
+  const [showVendorModal, setShowVendorModal] = useState(false);
+
+  const [editingCategory, setEditingCategory] = useState(null);
+
+  const [editingSubCategory, setEditingSubCategory] = useState(null);
+
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  const [editingVendor, setEditingVendor] = useState(null);
+
+  
+
+  // Form states
+
+  const [categoryForm, setCategoryForm] = useState({
+
+    name: '',
+
+    displayName: '',
+
+    icon: '',
+
+    image: '',
+
+    description: '',
+
+    isFeatured: false,
+
+    displayOrder: 0,
+
+    isActive: true,
+
+  });
+
+  const [subCategoryForm, setSubCategoryForm] = useState({
+
+    name: '',
+
+    displayName: '',
+
+    categoryId: '',
+
+    icon: '',
+
+    image: '',
+
+    description: '',
+
+    isFeatured: false,
+
+    displayOrder: 0,
+
+    isActive: true,
+
+  });
+
+  
+
+  const [productForm, setProductForm] = useState({
+
+    name: '',
+
+    description: '',
+
+    price: '',
+
+    originalPrice: '',
+
+    category: '',
+
+    subCategory: '',
+
+    stock: '',
+
+    imageUrls: [],
+
+    isActive: true,
+
+    isFeatured: false,
+
+    isTrending: false,
+
+  });
+
+
+
+  const [vendorForm, setVendorForm] = useState({
+
+    name: '',
+
+    email: '',
+
+    phone: '',
+
+    address: '',
+
+    businessName: '',
+
+    businessType: '',
+
+    description: '',
+
+    isActive: true,
+
+    isVerified: false,
+
+  });
+
+  
+
+  // Load validation rules from backend
+
+  const loadValidationRules = async () => {
+
+    try {
+
+      const response = await validationRulesAPI.getAll();
+
+      if (response.data.success) {
+
+        const rules = {};
+
+        response.data.validationRules.forEach(rule => {
+
+          rules[rule.entity] = rule.fields;
+
+        });
+
+        setBackendValidationRules(rules);
+
+        console.log('Loaded validation rules from backend:', rules);
+
+      }
+
+    } catch (error) {
+
+      console.warn('Could not load validation rules from backend, using defaults:', error.message);
+
+    }
+
+  };
+
+  
+
+  // Validation function
+
+  const validateField = (fieldName, value, rules) => {
+
+    const errors = { ...validationErrors };
+
+    let error = '';
+
+    
+
+    if (rules.required && !value) {
+
+      error = defaultValidationRules.required.message;
+
+    } else if (rules.pattern && value && !rules.pattern.test(value)) {
+
+      error = rules.pattern.message || defaultValidationRules[rules.patternType]?.message;
+
+    } else if (rules.minLength && value && value.length < rules.minLength) {
+
+      error = defaultValidationRules.minLength(rules.minLength).message;
+
+    } else if (rules.maxLength && value && value.length > rules.maxLength) {
+
+      error = defaultValidationRules.maxLength(rules.maxLength).message;
+
+    }
+
+    
+
+    if (error) {
+
+      errors[fieldName] = error;
+
+    } else {
+
+      delete errors[fieldName];
+
+    }
+
+    
+
+    setValidationErrors(errors);
+
+    return !error;
+
+  };
+
+  const onFieldValidate = (fieldName, error) => {
+    const errors = { ...validationErrors };
+    if (error) {
+      errors[fieldName] = error;
+    } else {
+      delete errors[fieldName];
+    }
+    setValidationErrors(errors);
+  };
+
+  const fetchCategoryValidationRules = async () => {
+    try {
+      const response = await categoryAPI.getValidationRules();
+      if (response.data.success) {
+        setCategoryValidationRules(response.data.rules);
+      }
+    } catch (error) {
+      console.error('Error fetching category validation rules:', error);
+    }
+  };
+
+  const fetchSubCategoryValidationRules = async () => {
+    try {
+      const response = await subCategoryAPI.getValidationRules();
+      if (response.data.success) {
+        setSubCategoryValidationRules(response.data.rules);
+      }
+    } catch (error) {
+      console.error('Error fetching subcategory validation rules:', error);
+    }
+  };
+
+  const fetchMaxDisplayOrder = async () => {
+    try {
+      const response = await categoryAPI.getMaxDisplayOrder();
+      if (response.data.success) {
+        return response.data.maxDisplayOrder;
+      }
+    } catch (error) {
+      console.error('Error fetching max display order:', error);
+    }
+    return 0;
+  };
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login', { state: { from: '/admin' } });
-      return;
+    fetchCategoryValidationRules();
+    fetchSubCategoryValidationRules();
+  }, []);
+
+  
+
+  // Validate entire form
+
+  const validateForm = (form, rules) => {
+
+    let isValid = true;
+
+    const errors = {};
+
+    
+
+    Object.keys(rules).forEach(fieldName => {
+
+      const fieldRules = rules[fieldName];
+
+      const value = form[fieldName];
+
+      let error = '';
+
+      
+
+      if (fieldRules.required && !value) {
+
+        error = defaultValidationRules.required.message;
+
+      } else if (fieldRules.pattern && value && !fieldRules.pattern.test(value)) {
+
+        error = fieldRules.message || 'Invalid format';
+
+      } else if (fieldRules.minLength && value && value.length < fieldRules.minLength) {
+
+        error = `Minimum length is ${fieldRules.minLength} characters`;
+
+      } else if (fieldRules.maxLength && value && value.length > fieldRules.maxLength) {
+
+        error = `Maximum length is ${fieldRules.maxLength} characters`;
+
+      }
+
+      
+
+      if (error) {
+
+        errors[fieldName] = error;
+
+        isValid = false;
+
+      }
+
+    });
+
+    
+
+    setValidationErrors(errors);
+
+    return isValid;
+
+  };
+
+  
+
+  const [config, setConfig] = useState({
+    site: {
+      name: 'HappyShopping Clone',
+      description: 'Your one-stop shop for everything you need',
+      heroImageBase64: '',
+      slideshowImages: [],
+      enableSlideshow: false,
+      basicInfoOrder: 1,
+      heroImageOrder: 2,
+      slideshowOrder: 3
+    },
+    header: {
+      logoBase64: '',
+      logoText: 'HappyShopping',
+      backgroundColor: '#EC4899',
+      backgroundColorEnd: '#8B5CF6',
+      textColor: '#FFFFFF',
+      showSearchIcon: false,
+      showLoginIcon: false,
+      customIcons: [],
+      logoBrandingOrder: 1,
+      searchSettingsOrder: 2,
+      customIconsOrder: 4
+    },
+    footer: {
+      companyName: 'HappyShopping Clone',
+      companyDescription: 'Your trusted e-commerce platform',
+      socialLinks: [],
+      companyInfoOrder: 1,
+      businessLinks: [],
+      businessLinksOrder: 2,
+      contactFields: [],
+      contactUsOrder: 3,
+      copyrightText: '© 2024 HappyShopping Clone. All rights reserved.',
+      copyrightLinks: [],
+      copyrightSectionOrder: 4,
+      backgroundColor: '#1F2937',
+      backgroundColorEnd: '#111827',
+      textColor: '#FFFFFF'
     }
+  });
+
+
+
+  const [dashboardStats, setDashboardStats] = useState({
+
+    totalProducts: 0,
+
+    totalCategories: 0,
+
+    totalSubCategories: 0,
+
+    totalVendors: 0,
+
+    totalOrders: 0,
+
+    totalUsers: 0,
+
+    totalRevenue: 0,
+
+    activeProducts: 0,
+
+    featuredProducts: 0,
+
+    activeVendors: 0,
+
+    verifiedVendors: 0,
+
+    pendingOrders: 0,
+
+    completedOrders: 0,
+
+    recentOrders: [],
+
+    topProducts: [],
+
+  });
+
+
+
+  useEffect(() => {
+
     if (!isAdmin) {
-      navigate('/');
+
       return;
-    }
-    loadAll();
-  }, [user, isAdmin, navigate]);
 
-  const loadAll = async () => {
-    setLoading(true);
+    }
+
+    loadDashboardData();
+
+    loadValidationRules();
+
+  }, [isAdmin]);
+
+
+
+  const loadDashboardData = async () => {
+
     try {
-      const [p, c, sc, o, h, f, u] = await Promise.all([
-        productsAPI.getAllAdmin(),
-        categoriesAPI.getAllAdmin(),
-        categoriesAPI.getSubCategories(),
-        ordersAPI.getAll(),
-        layoutAPI.getHeader(),
-        layoutAPI.getFooter(),
-        usersAPI.getAll(),
+
+      setLoading(true);
+
+      console.log('Loading dashboard data...');
+
+      const [productsRes, vendorsRes, configRes, categoriesRes, subCategoriesRes, ordersRes] = await Promise.all([
+
+        productAPI.getAll(),
+
+        vendorAPI.getAll(),
+
+        siteConfigAPI.getConfiguration(),
+
+        categoryAPI.getAll(),
+
+        subCategoryAPI.getAll(),
+
+        orderAPI.getAll()
+
       ]);
-      setProducts(p.data);
-      setCategories(c.data);
-      setSubCategories(sc.data);
-      setOrders(o.data);
-      setHeaderData(h.data);
-      setFooterData(f.data);
-      setLogoPreview(h.data?.logoUrl || null);
-      setUsers(u.data);
-    } catch (err) {
-      console.error('Error loading admin data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const categoryName = (id) => categories.find((c) => c.id === id)?.name || '—';
-  const subCategoryName = (id) => subCategories.find((sc) => sc.id === id)?.name || '—';
+      
 
-  const openSubCategory = (data) => {
-    setForm(data ? { ...emptyCategory, ...data } : { ...emptyCategory });
-    setSubCategoryModal({ open: true, data });
-    setCategoryImagePreview(data?.imageUrl || null);
-  };
+      // Try to load users separately to handle 404 gracefully
 
-  const saveSubCategory = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const payload = { ...form };
-      if (categoryImagePreview) {
-        payload.imageUrl = categoryImagePreview;
+      let usersRes;
+
+      try {
+
+        usersRes = await userAPI.getAll();
+
+      } catch (userError) {
+
+        console.warn('User API not available:', userError.message);
+
+        usersRes = { data: { success: false, users: [] } };
+
       }
-      if (subCategoryModal.data) {
-        await categoriesAPI.updateSubCategory(subCategoryModal.data.id, payload);
+
+      
+
+      console.log('Categories response:', categoriesRes.data);
+
+      console.log('SubCategories response:', subCategoriesRes.data);
+
+      
+
+      if (productsRes.data.success) {
+
+        setProducts(productsRes.data.products);
+
+        const products = productsRes.data.products;
+
+        const activeProducts = products.filter(p => p.isActive).length;
+
+        const featuredProducts = products.filter(p => p.isFeatured).length;
+
+        setDashboardStats(prev => ({
+
+          ...prev,
+
+          totalProducts: products.length,
+
+          activeProducts,
+
+          featuredProducts,
+
+        }));
+
+      }
+
+      
+
+      if (vendorsRes.data.success) {
+
+        setVendors(vendorsRes.data.vendors);
+
+        const vendors = vendorsRes.data.vendors;
+
+        const activeVendors = vendors.filter(v => v.isActive).length;
+
+        const verifiedVendors = vendors.filter(v => v.isVerified).length;
+
+        setDashboardStats(prev => ({
+
+          ...prev,
+
+          totalVendors: vendors.length,
+
+          activeVendors,
+
+          verifiedVendors,
+
+        }));
+
+      }
+
+
+
+      if (configRes.data.success) {
+
+        setConfig(configRes.data.configuration);
+
+      }
+
+      
+
+      if (categoriesRes.data.success) {
+
+        console.log('Setting categories:', categoriesRes.data.categories);
+
+        setCategories(categoriesRes.data.categories);
+
+        setDashboardStats(prev => ({
+
+          ...prev,
+
+          totalCategories: categoriesRes.data.categories.length,
+
+        }));
+
       } else {
-        await categoriesAPI.createSubCategory(payload);
+
+        console.error('Categories API returned success=false');
+
       }
-      loadAll();
-      setSubCategoryModal({ open: false, data: null });
-      setForm({ ...emptyCategory });
-      setCategoryImagePreview(null);
-    } catch (err) {
-      console.error('Error saving subcategory:', err);
-      alert('Failed to save subcategory');
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const deleteSubCategory = async (id) => {
-    setDeleteModal({
-      open: true,
-      item: subCategories.find(sc => sc.id === id),
-      type: 'subcategory',
-      onConfirm: async () => {
-        await categoriesAPI.removeSubCategory(id);
-        loadAll();
-        setDeleteModal({ open: false, item: null, type: null, onConfirm: null });
+      
+
+      if (subCategoriesRes.data.success) {
+
+        console.log('Setting subCategories:', subCategoriesRes.data.subCategories);
+
+        setSubCategories(subCategoriesRes.data.subCategories);
+
+        setDashboardStats(prev => ({
+
+          ...prev,
+
+          totalSubCategories: subCategoriesRes.data.subCategories.length,
+
+        }));
+
+      } else {
+
+        console.error('SubCategories API returned success=false');
+
       }
-    });
-  };
 
-  const formatDateTime = (d) =>
-    new Date(d).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
 
-  const handleViewOrder = (order) => {
-    setSelectedOrder(order);
-    setShowOrderModal(true);
-  };
 
-  const revenue = orders
-    .filter((o) => o.status !== 'Cancelled')
-    .reduce((sum, o) => sum + o.total, 0);
+      if (ordersRes.data.success) {
 
-  const orderStats = {
-    total: orders.length,
-    pending: orders.filter(o => o.status === 'Pending').length,
-    pendingTotal: orders.filter(o => o.status === 'Pending').reduce((sum, o) => sum + o.total, 0),
-    processing: orders.filter(o => o.status === 'Processing').length,
-    processingTotal: orders.filter(o => o.status === 'Processing').reduce((sum, o) => sum + o.total, 0),
-    shipped: orders.filter(o => o.status === 'Shipped').length,
-    shippedTotal: orders.filter(o => o.status === 'Shipped').reduce((sum, o) => sum + o.total, 0),
-    delivered: orders.filter(o => o.status === 'Delivered').length,
-    deliveredTotal: orders.filter(o => o.status === 'Delivered').reduce((sum, o) => sum + o.total, 0),
-    cancelled: orders.filter(o => o.status === 'Cancelled').length,
-    cancelledTotal: orders.filter(o => o.status === 'Cancelled').reduce((sum, o) => sum + o.total, 0),
-  };
+        setOrders(ordersRes.data.orders);
 
-  // ---- Product CRUD ----
-  const openProduct = (data) => {
-    setForm(data ? { ...emptyProduct, ...data } : { ...emptyProduct });
-    setProductModal({ open: true, data });
-    setProductImagePreview(data?.imageUrl || null);
-  };
+        const orders = ordersRes.data.orders;
 
-  const fileToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = error => reject(error);
-    });
-  };
+        const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'processing').length;
 
-  const blobUrlToBase64 = async (blobUrl) => {
-    try {
-      const response = await fetch(blobUrl);
-      const blob = await response.blob();
-      return await fileToBase64(blob);
+        const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'completed').length;
+
+        const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+
+        setDashboardStats(prev => ({
+
+          ...prev,
+
+          totalOrders: orders.length,
+
+          pendingOrders,
+
+          completedOrders,
+
+          totalRevenue,
+
+        }));
+
+      }
+
+
+
+      if (usersRes.data.success) {
+
+        setUsers(usersRes.data.users);
+
+        setDashboardStats(prev => ({
+
+          ...prev,
+
+          totalUsers: usersRes.data.users.length,
+
+        }));
+
+      }
+
     } catch (error) {
-      console.error('Error converting blob URL to base64:', error);
-      return null;
-    }
-  };
 
-  const saveProduct = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+      console.error('Error loading dashboard data:', error);
 
-    // Convert color images from blob URLs to base64
-    const processedColors = await Promise.all(
-      (form.availableColors || []).map(async (color) => {
-        const processedImages = await Promise.all(
-          (color.images || []).map(async (img) => {
-            // If it's already a base64 string, return as is
-            if (img.startsWith('data:')) {
-              return img;
-            }
-            // If it's a blob URL, convert to base64
-            if (img.startsWith('blob:')) {
-              return await blobUrlToBase64(img);
-            }
-            // If it's a regular URL, keep as is
-            return img;
-          })
-        );
-        return {
-          ...color,
-          images: processedImages.filter(img => img !== null)
-        };
-      })
-    );
-
-    const payload = {
-      ...form,
-      price: parseFloat(form.price) || 0,
-      originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : null,
-      stock: parseInt(form.stock) || 0,
-      rating: parseFloat(form.rating) || 0,
-      reviewCount: parseInt(form.reviewCount) || 0,
-      availableColors: processedColors,
-      availableSizes: form.availableSizes || [],
-      variants: form.variants || [],
-    };
-
-    // Preserve existing reviews when updating - don't send reviews in payload
-    // Reviews will be managed separately by users who have purchased the product
-    delete payload.reviews;
-
-    try {
-      if (productModal.data?.id) {
-        await productsAPI.update(productModal.data.id, { ...productModal.data, ...payload });
-      } else {
-        await productsAPI.create(payload);
-      }
-      setProductModal({ open: false, data: null });
-      loadAll();
-    } catch (err) {
-      console.error(err);
-      alert('Error saving product');
     } finally {
-      setSaving(false);
+
+      setLoading(false);
+
     }
+
   };
 
-  const openVariant = (index = null) => {
-    const currentVariants = form.variants || [];
-    if (index !== null) {
-      const variant = currentVariants[index];
-      setVariantModal({ open: true, data: { ...variant }, index });
-    } else {
-      setVariantModal({ open: true, data: { color: '', colorCode: '#000000', size: '', price: form.price || 0, originalPrice: form.originalPrice || null, stock: 0, imageUrls: [], isActive: true }, index: null });
-    }
-  };
 
-  const saveVariant = (e) => {
-    e.preventDefault();
-    const currentVariants = [...(form.variants || [])];
-    if (variantModal.index !== null) {
-      currentVariants[variantModal.index] = variantModal.data;
-    } else {
-      currentVariants.push(variantModal.data);
-    }
-    setForm({ ...form, variants: currentVariants });
-    setVariantModal({ open: false, data: null, index: null });
-  };
 
-  const deleteVariant = (index) => {
-    const currentVariants = form.variants.filter((_, i) => i !== index);
-    setForm({ ...form, variants: currentVariants });
-  };
+  const handleSaveConfiguration = async () => {
 
-  const addColor = () => {
-    const color = prompt('Enter color name:');
-    const colorCode = prompt('Enter color hex code (e.g., #FF0000):');
-    if (color && colorCode) {
-      setForm({ ...form, availableColors: [...(form.availableColors || []), { name: color, code: colorCode, images: [] }] });
-    }
-  };
-
-  const removeColor = (index) => {
-    setForm({ ...form, availableColors: form.availableColors.filter((_, i) => i !== index) });
-  };
-
-  const handleColorImageUpload = (colorIndex, files) => {
-    const newImages = Array.from(files).map(file => URL.createObjectURL(file));
-    const updatedColors = [...form.availableColors];
-    updatedColors[colorIndex] = {
-      ...updatedColors[colorIndex],
-      images: [...(updatedColors[colorIndex].images || []), ...newImages]
-    };
-    setForm({ ...form, availableColors: updatedColors });
-  };
-
-  const handleColorImageDrop = (e, colorIndex) => {
-    e.preventDefault();
-    setDragOverColor(null);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleColorImageUpload(colorIndex, files);
-    }
-  };
-
-  const removeColorImage = (colorIndex, imageIndex) => {
-    const updatedColors = [...form.availableColors];
-    updatedColors[colorIndex] = {
-      ...updatedColors[colorIndex],
-      images: updatedColors[colorIndex].images.filter((_, i) => i !== imageIndex)
-    };
-    setForm({ ...form, availableColors: updatedColors });
-  };
-
-  const addSize = () => {
-    const size = prompt('Enter size (e.g., S, M, L, XL):');
-    if (size) {
-      setForm({ ...form, availableSizes: [...(form.availableSizes || []), size] });
-    }
-  };
-
-  const removeSize = (index) => {
-    setForm({ ...form, availableSizes: form.availableSizes.filter((_, i) => i !== index) });
-  };
-
-  const addSpecification = () => {
-    setForm({ ...form, specifications: [...(form.specifications || []), { name: '', value: '' }] });
-  };
-
-  const deleteSpecification = (index) => {
-    setForm({ ...form, specifications: form.specifications.filter((_, i) => i !== index) });
-  };
-
-  const addDynamicSection = () => {
-    setForm({ ...form, dynamicSections: [...(form.dynamicSections || []), { id: '', title: '', content: '', icon: '📄', sectionType: 'text', displayOrder: (form.dynamicSections?.length || 0), isActive: true }] });
-  };
-
-  const deleteDynamicSection = (index) => {
-    setForm({ ...form, dynamicSections: form.dynamicSections.filter((_, i) => i !== index) });
-  };
-
-  const addTrustBadge = () => {
-    setForm({ ...form, trustBadges: [...(form.trustBadges || []), { id: '', label: '', icon: '📦', displayOrder: (form.trustBadges?.length || 0), isActive: true }] });
-  };
-
-  const deleteTrustBadge = (index) => {
-    setForm({ ...form, trustBadges: form.trustBadges.filter((_, i) => i !== index) });
-  };
-
-  const deleteProduct = async (id) => {
-    setConfirmModal({
-      open: true,
-      title: 'Delete Product',
-      message: 'Are you sure you want to delete this product? This action cannot be undone.',
-      onConfirm: async () => {
-        await productsAPI.remove(id);
-        loadAll();
-        setConfirmModal({ open: false, title: '', message: '', onConfirm: null });
-      }
-    });
-  };
-
-  // ---- Category CRUD ----
-  const openCategory = (data) => {
-    setForm(data ? { ...emptyCategory, ...data } : { ...emptyCategory });
-    setCategoryModal({ open: true, data });
-    setCategoryImagePreview(data?.imageUrl || null);
-  };
-
-  const saveCategory = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    const payload = { ...form, displayOrder: parseInt(form.displayOrder) || 0 };
     try {
-      if (categoryModal.data?.id) {
-        await categoriesAPI.update(categoryModal.data.id, { ...categoryModal.data, ...payload });
-      } else {
-        await categoriesAPI.create(payload);
+
+      const response = await siteConfigAPI.updateConfiguration(config);
+
+      if (response.data.success) {
+
+        setToast({
+          show: true,
+          message: 'Configuration saved successfully!',
+          type: 'success'
+        });
+
       }
-      setCategoryModal({ open: false, data: null });
-      loadAll();
-    } catch (err) {
-      console.error(err);
-      alert('Error saving category');
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const deleteCategory = async (id) => {
-    setConfirmModal({
-      open: true,
-      title: 'Delete Category',
-      message: 'Are you sure you want to delete this category? This action cannot be undone.',
-      onConfirm: async () => {
-        await categoriesAPI.remove(id);
-        loadAll();
-        setConfirmModal({ open: false, title: '', message: '', onConfirm: null });
-      }
-    });
-  };
+    } catch (error) {
 
-  const handleProductImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      console.log('Uploading product image file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setProductImagePreview(base64);
-        setForm({ ...form, imageUrl: base64 });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+      console.error('Error saving configuration:', error);
 
-  const handleProductImageDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      console.log('Dropping product image file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setProductImagePreview(base64);
-        setForm({ ...form, imageUrl: base64 });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+      setToast({
+        show: true,
+        message: 'Failed to save configuration',
+        type: 'error'
+      });
 
-  const handleCategoryImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      console.log('Uploading category image file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setCategoryImagePreview(base64);
-        setForm({ ...form, imageUrl: base64 });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleCategoryImageDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      console.log('Dropping category image file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setCategoryImagePreview(base64);
-        setForm({ ...form, imageUrl: base64 });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // ---- User CRUD ----
-  const openUser = (data) => {
-    setUserModal({ open: true, data });
-  };
-
-  const saveUser = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      if (userModal.data?.id) {
-        await usersAPI.update(userModal.data.id, userModal.data);
-      } else {
-        await usersAPI.create(userModal.data);
-      }
-      setUserModal({ open: false, data: null });
-      loadAll();
-    } catch (err) {
-      console.error(err);
-      alert('Error saving user');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleUserActive = async (id) => {
-    try {
-      await usersAPI.toggleActive(id);
-      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isActive: !u.isActive } : u)));
-    } catch (err) {
-      console.error(err);
-      alert('Error toggling user status');
-    }
-  };
-
-  const deleteUser = async (id) => {
-    setConfirmModal({
-      open: true,
-      title: 'Delete User',
-      message: 'Are you sure you want to delete this user? This action cannot be undone.',
-      onConfirm: async () => {
-        await usersAPI.remove(id);
-        loadAll();
-        setConfirmModal({ open: false, title: '', message: '', onConfirm: null });
-      }
-    });
-  };
-
-  // Filter handlers
-  const filteredProducts = products.filter(p => 
-    p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredCategories = categories.filter(c => 
-    c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredOrders = orders.filter(o => {
-    // Apply status filter
-    if (orderStatusFilter !== 'All' && o.status !== orderStatusFilter) return false;
-
-    // Apply order ID search
-    if (orderIdSearch && !o.id.toLowerCase().includes(orderIdSearch.toLowerCase())) return false;
-
-    // Apply date range filter
-    if (orderDateFrom || orderDateTo) {
-      const orderDate = new Date(o.createdAt);
-      if (orderDateFrom && orderDate < new Date(orderDateFrom)) return false;
-      if (orderDateTo && orderDate > new Date(orderDateTo)) return false;
     }
 
-    // Apply search term (customer name/email)
-    if (searchTerm && !o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !o.email?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-
-    return true;
-  });
-
-  const filteredUsers = users.filter(u => {
-    const matchesSearch = 
-      u.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.phoneNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || 
-      (filterStatus === 'active' && u.isActive) || 
-      (filterStatus === 'inactive' && !u.isActive);
-    const matchesRole = filterRole === 'all' || u.role === filterRole;
-    return matchesSearch && matchesStatus && matchesRole;
-  });
-
-  const updateOrderStatus = async (id, status) => {
-    try {
-      await ordersAPI.updateStatus(id, status);
-      setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
-    } catch (err) {
-      console.error(err);
-      alert('Error updating status');
-    }
   };
+
+
 
   const handleSeedDatabase = async () => {
-    setConfirmModal({
-      open: true,
-      title: 'Seed Database',
-      message: 'This will seed the database with sample data. This may overwrite existing data. Continue?',
-      onConfirm: async () => {
-        setSeeding(true);
-        setConfirmModal({ open: false, title: '', message: '', onConfirm: null });
+
+    try {
+
+      const response = await seedAPI.seedDatabase();
+
+      if (response.data.success) {
+
+        alert('Database seeded successfully!');
+
+        loadDashboardData();
+
+      }
+
+    } catch (error) {
+
+      console.error('Error seeding database:', error);
+
+      alert('Error seeding database');
+
+    }
+
+  };
+
+
+
+  // Category handlers
+
+  const handleOpenCategoryModal = async (category = null) => {
+
+    if (category) {
+
+      setEditingCategory(category);
+
+      setCategoryForm({
+
+        name: category.name,
+
+        displayName: category.displayName,
+
+        icon: category.icon,
+
+        image: category.image,
+
+        description: category.description,
+
+        isFeatured: category.isFeatured,
+
+        displayOrder: category.displayOrder,
+
+        isActive: category.isActive,
+
+      });
+
+    } else {
+
+      const maxDisplayOrder = await fetchMaxDisplayOrder();
+
+      setEditingCategory(null);
+
+      setCategoryForm({
+
+        name: '',
+
+        displayName: '',
+
+        icon: '',
+
+        image: '',
+
+        description: '',
+
+        isFeatured: false,
+
+        displayOrder: maxDisplayOrder,
+
+        isActive: true,
+
+      });
+
+    }
+
+    setShowCategoryModal(true);
+
+  };
+
+
+
+  const handleCloseCategoryModal = () => {
+
+    setShowCategoryModal(false);
+
+    setEditingCategory(null);
+
+    setCategoryForm({
+
+      name: '',
+
+      displayName: '',
+
+      icon: '',
+
+      image: '',
+
+      description: '',
+
+      isFeatured: false,
+
+      displayOrder: 0,
+
+      isActive: true,
+
+    });
+
+    setValidationErrors({});
+
+  };
+
+
+
+  const handleSaveCategory = async () => {
+    // Validate image/icon exclusivity
+    if (categoryForm.image && categoryForm.icon) {
+      setValidationErrors({ image: 'Only one of Image or Icon can be set, not both' });
+      alert('Only one of Image or Icon can be set, not both');
+      return;
+    }
+
+    console.log('Saving category:', categoryForm);
+    console.log('Image length:', categoryForm.image?.length);
+
+    try {
+      if (editingCategory) {
+        await categoryAPI.update(editingCategory.id, categoryForm);
+        // Update dependent subcategories when category name changes
+        if (categoryForm.name !== editingCategory.name) {
+          await updateSubcategoriesOnCategoryChange(editingCategory.id, categoryForm.name);
+        }
+      } else {
+        await categoryAPI.create(categoryForm);
+      }
+      alert(editingCategory ? 'Category updated successfully!' : 'Category created successfully!');
+      handleCloseCategoryModal();
+      loadDashboardData();
+    } catch (error) {
+      console.error('Error saving category:', error);
+      console.error('Error response:', error.response?.data);
+      if (error.response && error.response.data && error.response.data.errors) {
+        const backendErrors = error.response.data.errors;
+        console.log('Backend errors type:', typeof backendErrors);
+        console.log('Backend errors:', backendErrors);
+        const errorMap = {};
+        
+        // Handle both array and object errors
+        if (Array.isArray(backendErrors)) {
+          backendErrors.forEach(err => {
+            if (err.toLowerCase().includes('name')) errorMap.name = err;
+            else if (err.toLowerCase().includes('display')) errorMap.displayName = err;
+            else if (err.toLowerCase().includes('icon')) errorMap.icon = err;
+            else if (err.toLowerCase().includes('image')) errorMap.image = err;
+            else if (err.toLowerCase().includes('description')) errorMap.description = err;
+            else errorMap.general = err;
+          });
+        } else {
+          // Handle object errors
+          Object.keys(backendErrors).forEach(key => {
+            const field = key.charAt(0).toLowerCase() + key.slice(1);
+            errorMap[field] = Array.isArray(backendErrors[key]) ? backendErrors[key][0] : backendErrors[key];
+          });
+        }
+        setValidationErrors(errorMap);
+      }
+      alert('Error saving category: ' + (error.response?.data?.errors?.[0] || error.message));
+    }
+  };
+
+
+
+  const updateSubcategoriesOnCategoryChange = async (categoryId, newCategoryName) => {
+
+    try {
+
+      const subCategoriesRes = await subCategoryAPI.getByCategory(categoryId);
+
+      if (subCategoriesRes.data.success && subCategoriesRes.data.subcategories) {
+
+        for (const subCategory of subCategoriesRes.data.subcategories) {
+
+          await subCategoryAPI.update(subCategory.id, {
+
+            ...subCategory,
+
+            categoryName: newCategoryName
+
+          });
+
+        }
+
+      }
+
+    } catch (error) {
+
+      console.error('Error updating subcategories on category change:', error);
+
+    }
+
+  };
+
+
+
+  const handleDeleteUser = (user) => {
+
+    setDeleteTarget({
+
+      type: 'user',
+
+      id: user._id || user.Id || user.id,
+
+      name: user.fullName || user.email
+
+    });
+
+    setShowDeleteModal(true);
+
+  };
+
+
+
+  const handleDeleteCategory = (category) => {
+
+    setDeleteTarget({
+
+      type: 'category',
+
+      id: category.id,
+
+      name: category.displayName || category.name
+
+    });
+
+    setShowDeleteModal(true);
+
+  };
+
+
+
+  const handleConfirmDelete = async () => {
+
+    try {
+
+      if (deleteTarget.type === 'category') {
+
+        await categoryAPI.delete(deleteTarget.id);
+
+      } else if (deleteTarget.type === 'subcategory') {
+
+        await subCategoryAPI.delete(deleteTarget.id);
+
+      } else if (deleteTarget.type === 'product') {
+
+        await productAPI.delete(deleteTarget.id);
+
+      } else if (deleteTarget.type === 'vendor') {
+
+        await vendorAPI.delete(deleteTarget.id);
+
+      } else if (deleteTarget.type === 'user') {
+
+        await userAPI.delete(deleteTarget.id);
+
+      }
+
+      setToast({
+        show: true,
+        message: `${deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1)} deleted successfully!`,
+        type: 'success'
+      });
+
+      loadDashboardData();
+
+    } catch (error) {
+
+      console.error(`Error deleting ${deleteTarget.type}:`, error);
+
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || `Error deleting ${deleteTarget.type}`;
+      setToast({
+        show: true,
+        message: errorMessage,
+        type: 'error'
+      });
+
+    }
+
+    setShowDeleteModal(false);
+
+    setDeleteTarget({ type: '', id: '', name: '' });
+
+  };
+
+
+
+  const handleCloseDeleteModal = () => {
+
+    setShowDeleteModal(false);
+
+    setDeleteTarget({ type: '', id: '', name: '' });
+
+  };
+
+
+
+  // SubCategory handlers
+
+  const handleOpenSubCategoryModal = async (subCategory = null) => {
+    try {
+      if (subCategory) {
+        setEditingSubCategory(subCategory);
+        setSubCategoryForm({
+          name: subCategory.name,
+          displayName: subCategory.displayName,
+          categoryId: subCategory.categoryId,
+          icon: subCategory.icon || '',
+          image: subCategory.image,
+          description: subCategory.description,
+          isFeatured: subCategory.isFeatured,
+          displayOrder: subCategory.displayOrder,
+          isActive: subCategory.isActive,
+        });
+      } else {
+        setEditingSubCategory(null);
         try {
-          await seedAPI.seedDatabase();
-          alert('Database seeded successfully!');
-          loadAll();
-        } catch (err) {
-          console.error(err);
-          alert('Error seeding database');
-        } finally {
-          setSeeding(false);
+          const maxDisplayOrder = await subCategoryAPI.getMaxDisplayOrder();
+          const nextDisplayOrder = maxDisplayOrder.data.success ? maxDisplayOrder.data.maxDisplayOrder : 0;
+          setSubCategoryForm({
+            name: '',
+            displayName: '',
+            categoryId: '',
+            image: '',
+            description: '',
+            isFeatured: false,
+            displayOrder: nextDisplayOrder,
+            isActive: true,
+          });
+        } catch (error) {
+          console.error('Error fetching max display order:', error);
+          setSubCategoryForm({
+            name: '',
+            displayName: '',
+            categoryId: '',
+            image: '',
+            description: '',
+            isFeatured: false,
+            displayOrder: 0,
+            isActive: true,
+          });
         }
       }
-    });
+      setShowSubCategoryModal(true);
+    } catch (error) {
+      console.error('Error opening subcategory modal:', error);
+    }
   };
 
-  const handleSaveHeader = async () => {
-    setSaving(true);
+
+
+  const handleCloseSubCategoryModal = () => {
+
+    setShowSubCategoryModal(false);
+
+    setEditingSubCategory(null);
+
+    setSubCategoryForm({
+
+      name: '',
+
+      displayName: '',
+
+      categoryId: '',
+
+      icon: '',
+
+      image: '',
+
+      description: '',
+
+      isFeatured: false,
+
+      displayOrder: 0,
+
+      isActive: true,
+
+    });
+
+    setValidationErrors({});
+
+  };
+
+
+
+  const handleSaveSubCategory = async () => {
+    // Validate image/icon exclusivity
+    if (subCategoryForm.image && subCategoryForm.icon) {
+      setValidationErrors({ image: 'Only one of Image or Icon can be set, not both' });
+      setToast({
+        show: true,
+        message: 'Only one of Image or Icon can be set, not both',
+        type: 'error'
+      });
+      return;
+    }
+
     try {
-      console.log('Saving header data:', headerData);
-      
-      // Validate menu items before saving
-      if (headerData.menuItems) {
-        for (let i = 0; i < headerData.menuItems.length; i++) {
-          const item = headerData.menuItems[i];
-          if (!item.label || !item.label.trim()) {
-            alert(`Menu item at position ${i + 1} is missing a label`);
-            setSaving(false);
-            return;
-          }
-          if (!item.link || !item.link.trim()) {
-            alert(`Menu item "${item.label}" is missing a link`);
-            setSaving(false);
-            return;
-          }
+      if (editingSubCategory) {
+        await subCategoryAPI.update(editingSubCategory.id, subCategoryForm);
+        // Update dependent products when subcategory name changes
+        if (subCategoryForm.name !== editingSubCategory.name) {
+          await updateProductsOnSubcategoryChange(editingSubCategory.id, subCategoryForm.name);
         }
+      } else {
+        await subCategoryAPI.create(subCategoryForm);
       }
-      
-      const response = await layoutAPI.updateHeader(headerData);
-      console.log('Header save response:', response);
-      alert('Header updated successfully!');
-    } catch (err) {
-      console.error('Error saving header:', err);
-      alert('Error updating header: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setSaving(false);
+      setToast({
+        show: true,
+        message: editingSubCategory ? 'SubCategory updated successfully!' : 'SubCategory created successfully!',
+        type: 'success'
+      });
+      handleCloseSubCategoryModal();
+      loadDashboardData();
+    } catch (error) {
+      console.error('Error saving subcategory:', error);
+      console.error('Error response:', error.response?.data);
+      if (error.response && error.response.data && error.response.data.errors) {
+        const backendErrors = error.response.data.errors;
+        console.log('Backend errors type:', typeof backendErrors);
+        console.log('Backend errors:', backendErrors);
+        const errorMap = {};
+        
+        // Handle both array and object errors
+        if (Array.isArray(backendErrors)) {
+          backendErrors.forEach(err => {
+            if (err.toLowerCase().includes('name')) errorMap.name = err;
+            else if (err.toLowerCase().includes('display')) errorMap.displayName = err;
+            else if (err.toLowerCase().includes('category')) errorMap.categoryId = err;
+            else if (err.toLowerCase().includes('icon')) errorMap.icon = err;
+            else if (err.toLowerCase().includes('image')) errorMap.image = err;
+            else if (err.toLowerCase().includes('description')) errorMap.description = err;
+            else if (err.toLowerCase().includes('order')) errorMap.displayOrder = err;
+          });
+        } else {
+          // Handle object errors
+          Object.keys(backendErrors).forEach(key => {
+            errorMap[key] = backendErrors[key];
+          });
+        }
+        
+        setValidationErrors(errorMap);
+        setToast({
+          show: true,
+          message: 'Validation failed. Please check the form for errors.',
+          type: 'error'
+        });
+      } else {
+        const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Unknown error';
+        setToast({
+          show: true,
+          message: 'Error saving subcategory: ' + errorMessage,
+          type: 'error'
+        });
+      }
     }
   };
 
-  const handleSaveFooter = async () => {
-    setSaving(true);
+
+
+  const updateProductsOnSubcategoryChange = async (subCategoryId, newSubCategoryName) => {
+
     try {
-      await layoutAPI.updateFooter(footerData);
-      alert('Footer updated successfully!');
-    } catch (err) {
-      console.error(err);
-      alert('Error updating footer');
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const openMenuItem = (index = null) => {
-    console.log('Opening menu item modal, index:', index);
-    if (index !== null) {
-      const item = headerData.menuItems[index];
-      console.log('Editing existing menu item:', item);
-      setMenuItemModal({ open: true, data: { ...item }, index });
-      setIconPreview(item.icon || null);
-    } else {
-      console.log('Adding new menu item');
-      setMenuItemModal({ open: true, data: { id: Date.now().toString(), label: '', link: '', isActive: true, displayOrder: 0, subMenus: [] }, index: null });
-      setIconPreview(null);
-    }
-  };
+      const productsRes = await productAPI.getAll();
 
-  const openSubMenu = (index = null) => {
-    const currentSubMenus = menuItemModal.data.subMenus || [];
-    if (index !== null) {
-      const subItem = currentSubMenus[index];
-      setSubMenuModal({ open: true, data: { ...subItem }, index });
-      setSubMenuIconPreview(subItem.icon || null);
-    } else {
-      setSubMenuModal({ open: true, data: { id: Date.now().toString(), label: '', link: '', isActive: true, displayOrder: 0, icon: '' }, index: null });
-      setSubMenuIconPreview(null);
-    }
-  };
+      if (productsRes.data.success && productsRes.data.products) {
 
-  const saveSubMenu = (e) => {
-    e.preventDefault();
-    
-    console.log('Saving submenu:', subMenuModal.data);
-    
-    if (!subMenuModal.data.label || !subMenuModal.data.label.trim()) {
-      alert('Sub-menu label is required');
-      return;
-    }
-    if (!subMenuModal.data.link || !subMenuModal.data.link.trim()) {
-      alert('Sub-menu link is required');
-      return;
-    }
+        const productsToUpdate = productsRes.data.products.filter(
 
-    const currentSubMenus = [...(menuItemModal.data.subMenus || [])];
-    if (subMenuModal.index !== null) {
-      console.log('Updating existing submenu at index:', subMenuModal.index);
-      currentSubMenus[subMenuModal.index] = subMenuModal.data;
-    } else {
-      console.log('Adding new submenu');
-      currentSubMenus.push(subMenuModal.data);
-    }
-    
-    setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, subMenus: currentSubMenus } });
-    setSubMenuModal({ open: false, data: null, index: null });
-    setSubMenuIconPreview(null);
-    
-    console.log('Submenu saved. Updated submenus:', currentSubMenus);
-  };
+          p => p.subCategory === editingSubCategory.name
 
-  const deleteSubMenu = (index) => {
-    const subItem = menuItemModal.data.subMenus[index];
-    setDeleteModal({
-      open: true,
-      item: subItem,
-      type: 'submenu',
-      onConfirm: () => {
-        const currentSubMenus = menuItemModal.data.subMenus.filter((_, i) => i !== index);
-        setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, subMenus: currentSubMenus } });
-        setDeleteModal({ open: false, item: null, type: null, onConfirm: null });
+        );
+
+        for (const product of productsToUpdate) {
+
+          await productAPI.update(product.id, {
+
+            ...product,
+
+            subCategory: newSubCategoryName
+
+          });
+
+        }
+
       }
+
+    } catch (error) {
+
+      console.error('Error updating products on subcategory change:', error);
+
+    }
+
+  };
+
+
+
+  const handleDeleteSubCategory = (subCategory) => {
+
+    setDeleteTarget({
+
+      type: 'subcategory',
+
+      id: subCategory.id,
+
+      name: subCategory.displayName || subCategory.name
+
     });
+
+    setShowDeleteModal(true);
+
   };
 
-  const handleSubMenuIconUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      console.log('Uploading submenu icon file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setSubMenuIconPreview(base64);
-        setSubMenuModal({ ...subMenuModal, data: { ...subMenuModal.data, icon: base64, iconType: 'base64' } });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const handleSubMenuIconDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      console.log('Dropping submenu icon file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setSubMenuIconPreview(base64);
-        setSubMenuModal({ ...subMenuModal, data: { ...subMenuModal.data, icon: base64, iconType: 'base64' } });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const handleLogoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      console.log('Uploading logo file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setLogoPreview(base64);
-        setHeaderData({ ...headerData, logoUrl: base64 });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // Product handlers
 
-  const handleLogoDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      console.log('Dropping logo file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setLogoPreview(base64);
-        setHeaderData({ ...headerData, logoUrl: base64 });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const handleOpenProductModal = (product = null) => {
 
-  const openFooterSection = (index = null) => {
-    if (index !== null) {
-      const section = footerData.sections[index];
-      setFooterSectionModal({ open: true, data: { ...section }, index });
+    if (product) {
+
+      setEditingProduct(product);
+
+      setProductForm({
+
+        name: product.name,
+
+        description: product.description,
+
+        price: product.price,
+
+        originalPrice: product.originalPrice,
+
+        category: product.category,
+
+        subCategory: product.subCategory,
+
+        stock: product.stock,
+
+        isActive: product.isActive,
+
+        isFeatured: product.isFeatured,
+
+        isTrending: product.isTrending,
+
+        imageUrls: product.imageUrls || [],
+
+      });
+
     } else {
-      setFooterSectionModal({ open: true, data: { id: Date.now().toString(), title: '', links: [], displayOrder: 0, isActive: true }, index: null });
+
+      setEditingProduct(null);
+
+      setProductForm({
+
+        name: '',
+
+        description: '',
+
+        price: '',
+
+        originalPrice: '',
+
+        category: '',
+
+        subCategory: '',
+
+        stock: '',
+
+        imageUrls: [],
+
+        isActive: true,
+
+        isFeatured: false,
+
+        isTrending: false,
+
+      });
+
     }
+
+    setShowProductModal(true);
+
   };
 
-  const saveFooterSection = (e) => {
-    e.preventDefault();
-    
-    if (!footerSectionModal.data.title || !footerSectionModal.data.title.trim()) {
-      alert('Title is required');
-      return;
-    }
 
-    const updatedSections = [...(footerData.sections || [])];
-    if (footerSectionModal.index !== null) {
-      updatedSections[footerSectionModal.index] = footerSectionModal.data;
-    } else {
-      updatedSections.push(footerSectionModal.data);
-    }
-    
-    setFooterData({ ...footerData, sections: updatedSections });
-    setFooterSectionModal({ open: false, data: null, index: null });
+
+  const handleCloseProductModal = () => {
+
+    setShowProductModal(false);
+
+    setEditingProduct(null);
+
+    setProductForm({
+
+      name: '',
+
+      description: '',
+
+      price: '',
+
+      originalPrice: '',
+
+      category: '',
+
+      subCategory: '',
+
+      stock: '',
+
+      isActive: true,
+
+      isFeatured: false,
+
+      isTrending: false,
+
+      imageUrls: [],
+
+    });
+
+    setValidationErrors({});
+
   };
 
-  const deleteFooterSection = (index) => {
-    const section = footerData.sections[index];
-    setDeleteModal({
-      open: true,
-      item: section,
-      type: 'footerSection',
-      onConfirm: () => {
-        const updatedSections = footerData.sections.filter((_, i) => i !== index);
-        setFooterData({ ...footerData, sections: updatedSections });
-        setDeleteModal({ open: false, item: null, type: null, onConfirm: null });
+
+
+  const handleSaveProduct = async () => {
+
+    try {
+
+      const productData = {
+
+        ...productForm,
+
+        price: parseFloat(productForm.price),
+
+        originalPrice: parseFloat(productForm.originalPrice),
+
+        stock: parseInt(productForm.stock),
+
+        vendorId: 'admin',
+
+        companyId: 'admin',
+
+        discountPercentage: productForm.originalPrice 
+
+          ? Math.round(((parseFloat(productForm.originalPrice) - parseFloat(productForm.price)) / parseFloat(productForm.originalPrice)) * 100)
+
+          : 0,
+
+      };
+
+      
+
+      if (editingProduct) {
+
+        await productAPI.update(editingProduct.id, productData);
+
+      } else {
+
+        await productAPI.create(productData);
+
       }
+
+      alert(editingProduct ? 'Product updated successfully!' : 'Product created successfully!');
+
+      handleCloseProductModal();
+
+      loadDashboardData();
+
+    } catch (error) {
+
+      console.error('Error saving product:', error);
+
+      alert('Error saving product');
+
+    }
+
+  };
+
+
+
+  const handleDeleteProduct = (product) => {
+
+    setDeleteTarget({
+
+      type: 'product',
+
+      id: product.id,
+
+      name: product.name
+
     });
+
+    setShowDeleteModal(true);
+
   };
 
-  const openFooterLink = (sectionIndex, linkIndex = null) => {
-    const section = footerData.sections[sectionIndex];
-    if (linkIndex !== null) {
-      const link = section.links[linkIndex];
-      setFooterLinkModal({ open: true, data: { ...link }, sectionIndex, linkIndex });
+
+
+  // Vendor handlers
+
+  const handleOpenVendorModal = (vendor = null) => {
+
+    if (vendor) {
+
+      setEditingVendor(vendor);
+
+      setVendorForm({
+
+        name: vendor.name,
+
+        email: vendor.email,
+
+        phone: vendor.phone,
+
+        address: vendor.address,
+
+        businessName: vendor.businessName,
+
+        businessType: vendor.businessType,
+
+        description: vendor.description,
+
+        isActive: vendor.isActive,
+
+        isVerified: vendor.isVerified,
+
+      });
+
     } else {
-      setFooterLinkModal({ open: true, data: { id: Date.now().toString(), label: '', link: '', displayOrder: 0, isActive: true }, sectionIndex, linkIndex: null });
+
+      setEditingVendor(null);
+
+      setVendorForm({
+
+        name: '',
+
+        email: '',
+
+        phone: '',
+
+        address: '',
+
+        businessName: '',
+
+        businessType: '',
+
+        description: '',
+
+        isActive: true,
+
+        isVerified: false,
+
+      });
+
     }
+
+    setShowVendorModal(true);
+
   };
 
-  const saveFooterLink = (e) => {
-    e.preventDefault();
-    
-    if (!footerLinkModal.data.label || !footerLinkModal.data.label.trim()) {
-      alert('Label is required');
-      return;
-    }
-    if (!footerLinkModal.data.link || !footerLinkModal.data.link.trim()) {
-      alert('Link is required');
-      return;
-    }
 
-    const updatedSections = [...footerData.sections];
-    const section = { ...updatedSections[footerLinkModal.sectionIndex] };
-    const updatedLinks = [...section.links];
-    
-    if (footerLinkModal.linkIndex !== null) {
-      updatedLinks[footerLinkModal.linkIndex] = footerLinkModal.data;
-    } else {
-      updatedLinks.push(footerLinkModal.data);
-    }
-    
-    section.links = updatedLinks;
-    updatedSections[footerLinkModal.sectionIndex] = section;
-    
-    setFooterData({ ...footerData, sections: updatedSections });
-    setFooterLinkModal({ open: false, data: null, sectionIndex: null, linkIndex: null });
+
+  const handleCloseVendorModal = () => {
+
+    setShowVendorModal(false);
+
+    setEditingVendor(null);
+
+    setVendorForm({
+
+      name: '',
+
+      email: '',
+
+      phone: '',
+
+      address: '',
+
+      businessName: '',
+
+      businessType: '',
+
+      description: '',
+
+      isActive: true,
+
+      isVerified: false,
+
+    });
+
+    setValidationErrors({});
+
   };
 
-  const deleteFooterLink = (sectionIndex, linkIndex) => {
-    const link = footerData.sections[sectionIndex].links[linkIndex];
-    setDeleteModal({
-      open: true,
-      item: link,
-      type: 'footerLink',
-      onConfirm: () => {
-        const updatedSections = [...footerData.sections];
-        const section = { ...updatedSections[sectionIndex] };
-        section.links = section.links.filter((_, i) => i !== linkIndex);
-        updatedSections[sectionIndex] = section;
-        setFooterData({ ...footerData, sections: updatedSections });
-        setDeleteModal({ open: false, item: null, type: null, onConfirm: null });
+
+
+  const handleSaveVendor = async () => {
+
+    // Validate form before submission
+
+    const vendorRules = {
+
+      name: { required: true, minLength: 2, maxLength: 100 },
+
+      email: { required: true, pattern: defaultValidationRules.email },
+
+      phone: { required: true, pattern: defaultValidationRules.phone },
+
+      businessName: { required: true, minLength: 2, maxLength: 200 },
+
+      businessType: { required: true },
+
+      address: { maxLength: 500 },
+
+      description: { maxLength: 1000 }
+
+    };
+
+    
+
+    if (!validateForm(vendorForm, vendorRules)) {
+
+      alert('Please fix the validation errors before saving');
+
+      return;
+
+    }
+
+    
+
+    try {
+
+      if (editingVendor) {
+
+        await vendorAPI.update(editingVendor.id, vendorForm);
+
+        alert('Vendor updated successfully!');
+
+      } else {
+
+        await vendorAPI.create(vendorForm);
+
+        alert('Vendor created successfully!');
+
       }
+
+      handleCloseVendorModal();
+
+      loadDashboardData();
+
+    } catch (error) {
+
+      console.error('Error saving vendor:', error);
+
+      alert('Error saving vendor');
+
+    }
+
+  };
+
+
+
+  const handleDeleteVendor = (vendor) => {
+
+    setDeleteTarget({
+
+      type: 'vendor',
+
+      id: vendor.id,
+
+      name: vendor.name || vendor.businessName
+
     });
+
+    setShowDeleteModal(true);
+
   };
 
-  const handleIconUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      console.log('Uploading icon file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setIconPreview(base64);
-        setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, icon: base64, iconType: 'base64' } });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const handleIconDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      console.log('Dropping icon file:', file.name, file.type, file.size);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result;
-        setIconPreview(base64);
-        setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, icon: base64, iconType: 'base64' } });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const saveMenuItem = (e) => {
-    e.preventDefault();
-    
-    console.log('Saving menu item:', menuItemModal.data);
-    
-    // Validate required fields
-    if (!menuItemModal.data.label || !menuItemModal.data.label.trim()) {
-      alert('Label is required');
-      return;
-    }
-    if (!menuItemModal.data.link || !menuItemModal.data.link.trim()) {
-      alert('Link is required');
-      return;
-    }
+  // Image upload handlers
 
-    const updatedMenuItems = [...(headerData.menuItems || [])];
-    if (menuItemModal.index !== null) {
-      console.log('Updating existing menu item at index:', menuItemModal.index);
-      updatedMenuItems[menuItemModal.index] = menuItemModal.data;
-    } else {
-      console.log('Adding new menu item');
-      updatedMenuItems.push(menuItemModal.data);
-    }
-    
-    setHeaderData({ ...headerData, menuItems: updatedMenuItems });
-    setMenuItemModal({ open: false, data: null, index: null });
-    setIconPreview(null);
-    
-    console.log('Menu item saved to local state. Updated menu items:', updatedMenuItems);
-    alert('Menu item saved! Click "Save Header" to persist changes to database.');
-  };
+  const handleImageUpload = (e, formType) => {
 
-  const deleteMenuItem = (index) => {
-    const item = headerData.menuItems[index];
-    setDeleteModal({
-      open: true,
-      item: item,
-      type: 'menu',
-      onConfirm: () => {
-        const updatedMenuItems = headerData.menuItems.filter((_, i) => i !== index);
-        setHeaderData({ ...headerData, menuItems: updatedMenuItems });
-        setDeleteModal({ open: false, item: null, type: null, onConfirm: null });
+    const files = e.target.files;
+
+    if (files && files.length > 0) {
+
+      if (formType === 'product') {
+
+        for (const file of files) {
+
+          convertToBase64(file, formType);
+
+        }
+
+      } else {
+
+        const file = files[0];
+
+        convertToBase64(file, formType);
+
       }
-    });
+
+    }
+
   };
 
-  const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  if (loading) {
+
+  const handleImageDrop = (e, formType) => {
+
+    e.preventDefault();
+
+    const files = e.dataTransfer.files;
+
+    if (files && files.length > 0) {
+
+      if (formType === 'product') {
+
+        for (const file of files) {
+
+          convertToBase64(file, formType);
+
+        }
+
+      } else {
+
+        const file = files[0];
+
+        convertToBase64(file, formType);
+
+      }
+
+    }
+
+  };
+
+
+
+  const convertToBase64 = (file, formType) => {
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+
+      const base64 = reader.result;
+
+      if (formType === 'category') {
+
+        setCategoryForm({ ...categoryForm, image: base64 });
+
+      } else if (formType === 'subcategory') {
+
+        setSubCategoryForm({ ...subCategoryForm, image: base64 });
+
+      } else if (formType === 'product') {
+
+        setProductForm(prev => ({
+
+          ...prev,
+
+          imageUrls: [...prev.imageUrls, base64]
+
+        }));
+
+      }
+
+    };
+
+    reader.readAsDataURL(file);
+
+  };
+
+
+
+  const handleRemoveImage = (e, formType, index = null) => {
+
+    e.preventDefault();
+
+    e.stopPropagation();
+
+    if (formType === 'category') {
+
+      setCategoryForm({ ...categoryForm, image: '' });
+
+    } else if (formType === 'subcategory') {
+
+      setSubCategoryForm({ ...subCategoryForm, image: '' });
+
+    } else if (formType === 'product' && index !== null) {
+
+      setProductForm(prev => ({
+
+        ...prev,
+
+        imageUrls: prev.imageUrls.filter((_, i) => i !== index)
+
+      }));
+
+    }
+
+  };
+
+
+
+  if (!isAdmin) {
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+
+        <div className="text-center">
+
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">Access Denied</h1>
+
+          <p className="text-gray-600">You don't have permission to access this page</p>
+
+        </div>
+
       </div>
+
     );
+
   }
 
+
+
+  const tabs = [
+
+    { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard, section: 'management' },
+
+    { id: 'products', label: 'Products', icon: Package, section: 'management' },
+
+    { id: 'categories', label: 'Categories', icon: Folder, section: 'management' },
+
+    { id: 'subcategories', label: 'SubCategories', icon: FolderOpen, section: 'management' },
+
+    { id: 'vendors', label: 'Vendors', icon: Users, section: 'management' },
+
+    { id: 'orders', label: 'Order Management', icon: ShoppingCart, section: 'management' },
+
+    { id: 'users', label: 'Users', icon: UserCheck, section: 'management' },
+
+    { id: 'profile', label: 'My Profile', icon: Users, section: 'personal' },
+
+    { id: 'settings', label: 'My Settings', icon: Settings, section: 'personal' },
+
+    { id: 'configuration', label: 'Site Configuration', icon: Settings, section: 'configuration' },
+
+  ];
+
+
+
   return (
-    <div className="min-h-screen bg-gray-50 py-4 sm:py-8 px-3 sm:px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl font-bold shrink-0">
-                <ShieldCheck size={24} className="sm:w-8 sm:h-8" />
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                <p className="text-gray-500 text-sm sm:text-base">Welcome back, {user?.fullName || 'Admin'}!</p>
-              </div>
-            </div>
-            <button
-              onClick={() => { logout(); navigate('/'); }}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm sm:text-base self-start sm:self-auto"
-            >
-              <LogOut size={16} className="sm:w-4 sm:h-4" />
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
 
-        {/* Tabs */}
-        <div className="mb-4 sm:mb-6">
-          {/* Desktop Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-2 pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#a855f7 #f3e8ff' }}>
-            <style>{`
-              .custom-scroll::-webkit-scrollbar { height: 6px; }
-              .custom-scroll::-webkit-scrollbar-track { background: linear-gradient(to right, #f3e8ff, #e9d5ff); border-radius: 10px; }
-              .custom-scroll::-webkit-scrollbar-thumb { background: linear-gradient(to right, #a855f7, #6366f1); border-radius: 10px; }
-              .custom-scroll::-webkit-scrollbar-thumb:hover { background: linear-gradient(to right, #9333ea, #4f46e5); }
-            `}</style>
-            {[
-              { id: 'overview', icon: Package, label: 'Overview', color: 'from-blue-500 to-cyan-500' },
-              { id: 'products', icon: Package, label: 'Products', color: 'from-green-500 to-emerald-500' },
-              { id: 'categories', icon: Layers, label: 'Categories', color: 'from-purple-500 to-pink-500' },
-              { id: 'orders', icon: ShoppingBag, label: 'Orders', color: 'from-orange-500 to-amber-500' },
-              { id: 'users', icon: User, label: 'Users', color: 'from-red-500 to-rose-500' },
-              { id: 'header', icon: Layout, label: 'Header', color: 'from-indigo-500 to-blue-500' },
-              { id: 'footer', icon: Layout, label: 'Footer', color: 'from-teal-500 to-cyan-500' },
-              { id: 'seeding', icon: Database, label: 'Seeding', color: 'from-amber-500 to-orange-500' },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setTab(item.id)}
-                  className={`custom-scroll flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap transition-all shrink-0 border-2 ${
-                    tab === item.id
-                      ? `bg-gradient-to-r ${item.color} text-white shadow-lg transform scale-105`
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-purple-300 hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50'
-                  }`}
-                >
-                  <Icon size={16} />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
 
-        {/* Overview */}
-        {tab === 'overview' && (
-          <AdminOverview
-            orders={orders}
-            products={products}
-            categories={categories}
-            users={users}
-            onTabChange={setTab}
-          />
-        )}
+      {/* Header */}
 
-        {/* Products */}
-        {tab === 'products' && (
-          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Products ({filteredProducts.length})</h2>
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 sm:py-4 md:py-6 sticky top-0 z-40">
+
+        <div className="container mx-auto px-3 sm:px-4">
+
+          <div className="flex items-center justify-between gap-3">
+
+            <div className="flex items-center gap-2 sm:gap-3">
+
               <button
-                onClick={() => openProduct(null)}
-                className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
+
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+
+                className="lg:hidden p-2 rounded-lg hover:bg-white/20 transition-colors"
+
               >
-                <Plus size={16} /> Add
+
+                {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+
               </button>
-            </div>
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-              />
-            </div>
-            {/* Mobile Card Layout */}
-            <div className="grid grid-cols-1 sm:hidden gap-3">
-              {filteredProducts.map((p) => (
-                <div key={p.id} className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                      {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : '📦'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate">{p.name}</h3>
-                      <p className="text-sm text-gray-500">{categoryName(p.categoryId)}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="font-semibold text-blue-600">{formatPrice(p.price)}</span>
-                      <span className="text-gray-600">Stock: {p.stock}</span>
-                    </div>
-                    <span className="text-lg">{p.isFeatured ? '⭐' : '—'}</span>
-                  </div>
-                  <div className="flex items-center justify-end gap-2">
-                    <button onClick={() => openProduct(p)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                      <Pencil size={16} />
-                    </button>
-                    <button onClick={() => deleteProduct(p.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Desktop Table Layout */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-sm min-w-[640px]">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-100">
-                    <th className="py-3 pr-4">Product</th>
-                    <th className="py-3 pr-4">Category</th>
-                    <th className="py-3 pr-4">Price</th>
-                    <th className="py-3 pr-4">Stock</th>
-                    <th className="py-3 pr-4">Featured</th>
-                    <th className="py-3 pr-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.map((p) => (
-                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-3 pr-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                            {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : '📦'}
-                          </div>
-                          <span className="font-medium text-gray-800 line-clamp-1">{p.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4 text-gray-600">{categoryName(p.categoryId)}</td>
-                      <td className="py-3 pr-4 font-semibold text-blue-600">{formatPrice(p.price)}</td>
-                      <td className="py-3 pr-4 text-gray-600">{p.stock}</td>
-                      <td className="py-3 pr-4">{p.isFeatured ? '⭐' : '—'}</td>
-                      <td className="py-3 pr-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openProduct(p)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                            <Pencil size={16} />
-                          </button>
-                          <button onClick={() => deleteProduct(p.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
-        {/* Categories */}
-        {tab === 'categories' && (
-          <div className="space-y-4 sm:space-y-6">
-            {/* Categories Section */}
-            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Categories ({filteredCategories.length})</h2>
-                <button
-                  onClick={() => openCategory(null)}
-                  className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
-                >
-                  <Plus size={16} /> Add Category
-                </button>
-              </div>
-              <div className="mb-4">
-                <input
-                  type="text"
-                  placeholder="Search categories..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {filteredCategories.map((c) => (
-                  <div key={c.id} className="border border-gray-200 rounded-xl p-3 sm:p-4 flex items-center gap-3 hover:border-purple-300 transition-colors">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                      {c.imageUrl ? <img src={c.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{c.name}</p>
-                      <p className="text-xs text-gray-500">Order: {c.displayOrder}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openCategory(c)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                        <Pencil size={16} />
-                      </button>
-                      <button onClick={() => deleteCategory(c.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Subcategories Section */}
-            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Subcategories ({subCategories.length})</h2>
-                <button
-                  onClick={() => openSubCategory(null)}
-                  className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
-                >
-                  <Plus size={16} /> Add Subcategory
-                </button>
-              </div>
-              {/* Mobile Card Layout */}
-              <div className="grid grid-cols-1 sm:hidden gap-3">
-                {subCategories.map((sc) => (
-                  <div key={sc.id} className="border border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-colors">
-                    <div className="flex items-start gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                        {sc.imageUrl ? <img src={sc.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{sc.name}</p>
-                        <p className="text-xs text-gray-500">Parent: {categoryName(sc.parentCategoryId)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Order: {sc.displayOrder}</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => openSubCategory(sc)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                          <Pencil size={16} />
-                        </button>
-                        <button onClick={() => deleteSubCategory(sc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {/* Desktop Table Layout */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Parent Category</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Display Order</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {subCategories.map((sc) => (
-                      <tr key={sc.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                              {sc.imageUrl ? <img src={sc.imageUrl} alt="" className="w-full h-full object-cover" /> : '🏷️'}
-                            </div>
-                            <span className="font-medium text-gray-800">{sc.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{categoryName(sc.parentCategoryId)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{sc.displayOrder}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => openSubCategory(sc)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                              <Pencil size={16} />
-                            </button>
-                            <button onClick={() => deleteSubCategory(sc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Orders */}
-        {tab === 'orders' && (
-          <div className="space-y-4 sm:space-y-6">
-            {/* Status Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-              <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
-                <p className="text-xs font-semibold text-amber-100 mb-1">Pending</p>
-                <p className="text-xl sm:text-2xl font-bold">{orderStats.pending}</p>
-                <p className="text-xs sm:text-sm text-amber-100">{formatPrice(orderStats.pendingTotal)}</p>
-              </div>
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
-                <p className="text-xs font-semibold text-blue-100 mb-1">Processing</p>
-                <p className="text-xl sm:text-2xl font-bold">{orderStats.processing}</p>
-                <p className="text-xs sm:text-sm text-blue-100">{formatPrice(orderStats.processingTotal)}</p>
-              </div>
-              <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
-                <p className="text-xs font-semibold text-purple-100 mb-1">Shipped</p>
-                <p className="text-xl sm:text-2xl font-bold">{orderStats.shipped}</p>
-                <p className="text-xs sm:text-sm text-purple-100">{formatPrice(orderStats.shippedTotal)}</p>
-              </div>
-              <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
-                <p className="text-xs font-semibold text-green-100 mb-1">Delivered</p>
-                <p className="text-xl sm:text-2xl font-bold">{orderStats.delivered}</p>
-                <p className="text-xs sm:text-sm text-green-100">{formatPrice(orderStats.deliveredTotal)}</p>
-              </div>
-              <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-3 sm:p-4 text-white shadow-lg">
-                <p className="text-xs font-semibold text-red-100 mb-1">Cancelled</p>
-                <p className="text-xl sm:text-2xl font-bold">{orderStats.cancelled}</p>
-                <p className="text-xs sm:text-sm text-red-100">{formatPrice(orderStats.cancelledTotal)}</p>
-              </div>
-            </div>
-
-            {/* Orders Table */}
-            <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Orders ({filteredOrders.length})</h2>
-                <p className="text-sm text-gray-500">Total: {formatPrice(filteredOrders.reduce((sum, o) => sum + o.total, 0))}</p>
-              </div>
-
-              {/* Advanced Filters */}
-              <div className="bg-gray-50 rounded-xl p-3 sm:p-4 mb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Order ID</label>
-                    <input
-                      type="text"
-                      placeholder="Search by order ID..."
-                      value={orderIdSearch}
-                      onChange={(e) => setOrderIdSearch(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                    <select
-                      value={orderStatusFilter}
-                      onChange={(e) => setOrderStatusFilter(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                    >
-                      <option value="All">All Status</option>
-                      {ORDER_STATUSES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
-                    <input
-                      type="date"
-                      value={orderDateFrom}
-                      onChange={(e) => setOrderDateFrom(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
-                    <input
-                      type="date"
-                      value={orderDateTo}
-                      onChange={(e) => setOrderDateTo(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                    />
-                  </div>
-                </div>
-                {(orderStatusFilter !== 'All' || orderDateFrom || orderDateTo || orderIdSearch) && (
-                  <button
-                    onClick={() => {
-                      setOrderStatusFilter('All');
-                      setOrderDateFrom('');
-                      setOrderDateTo('');
-                      setOrderIdSearch('');
-                    }}
-                    className="mt-3 text-sm text-purple-600 hover:text-purple-700 font-medium"
-                  >
-                    Clear Filters
-                  </button>
-                )}
-              </div>
-
-              {filteredOrders.length === 0 ? (
-                <p className="text-gray-500 text-center py-10">No orders found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Order ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Customer</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Email</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Total</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {filteredOrders.map((o) => (
-                        <tr key={o.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <span className="font-bold text-gray-800 text-sm">#ORD-{o.id.slice(0, 8).toUpperCase()}</span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{o.customerName || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{o.email || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{new Date(o.createdAt).toLocaleDateString()}</td>
-                          <td className="px-4 py-3 font-bold text-blue-600 text-sm">{formatPrice(o.total)}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                              o.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
-                              o.status === 'Processing' ? 'bg-blue-100 text-blue-700' :
-                              o.status === 'Shipped' ? 'bg-indigo-100 text-indigo-700' :
-                              o.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                              'bg-red-100 text-red-700'
-                            }`}>
-                              {o.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleViewOrder(o)}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors text-xs font-medium"
-                              >
-                                <Eye size={12} /> View
-                              </button>
-                              <select
-                                value={o.status}
-                                onChange={(e) => updateOrderStatus(o.id, e.target.value)}
-                                className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-purple-500"
-                              >
-                                {ORDER_STATUSES.map((s) => (
-                                  <option key={s} value={s}>{s}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Order Details Modal */}
-        {showOrderModal && selectedOrder && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 sm:p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-              {/* Modal Header */}
-              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 sm:p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-3">
-                      <Box size={24} className="sm:w-7 sm:h-7" /> Order Details
-                    </h2>
-                    <p className="text-purple-100 mt-1 text-sm sm:text-base">Order #ORD-{selectedOrder.id.slice(0, 8).toUpperCase()}</p>
-                  </div>
-                  <button
-                    onClick={() => setShowOrderModal(false)}
-                    className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-                  >
-                    <X size={16} className="sm:w-5 sm:h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Modal Body */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-                {/* Order Status */}
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
-                        selectedOrder.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
-                        selectedOrder.status === 'Processing' ? 'bg-blue-100 text-blue-700' :
-                        selectedOrder.status === 'Shipped' ? 'bg-indigo-100 text-indigo-700' :
-                        selectedOrder.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {selectedOrder.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Calendar size={16} />
-                      <span className="text-sm">{formatDateTime(selectedOrder.createdAt)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Customer Information */}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <User size={18} className="text-purple-600" /> Customer Information
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Name</p>
-                      <p className="font-medium text-gray-800">{selectedOrder.customerName || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-medium text-gray-800">{selectedOrder.email || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Phone</p>
-                      <p className="font-medium text-gray-800">{selectedOrder.customerPhone || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Payment Method</p>
-                      <p className="font-medium text-gray-800 flex items-center gap-2">
-                        <CreditCard size={16} /> {selectedOrder.paymentMethod || 'Credit Card'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Shipping Address */}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <MapPinIcon size={18} className="text-purple-600" /> Shipping Address
-                  </h3>
-                  {selectedOrder.shippingAddress ? (
-                    <div className="text-gray-700">
-                      <p className="font-medium">{selectedOrder.shippingAddress.fullName || selectedOrder.customerName}</p>
-                      <p className="text-sm">{selectedOrder.shippingAddress.addressLine1}</p>
-                      {selectedOrder.shippingAddress.addressLine2 && (
-                        <p className="text-sm">{selectedOrder.shippingAddress.addressLine2}</p>
-                      )}
-                      <p className="text-sm">
-                        {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.zipCode}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">No shipping address provided</p>
-                  )}
-                </div>
-
-                {/* Order Items */}
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                  <h3 className="font-semibold text-gray-800 p-4 border-b border-gray-200 flex items-center gap-2">
-                    <Package size={18} className="text-purple-600" /> Order Items
-                  </h3>
-                  <div className="divide-y divide-gray-100">
-                    {selectedOrder.items?.map((item, index) => (
-                      <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start gap-4">
-                          <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
-                            {item.imageUrl ? (
-                              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-3xl">📦</span>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-800">{item.name}</p>
-                            {item.selectedVariant && (
-                              <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
-                                <span className="bg-gray-200 px-2 py-0.5 rounded">{item.selectedVariant.color}</span>
-                                <span className="bg-gray-200 px-2 py-0.5 rounded">{item.selectedVariant.size}</span>
-                              </div>
-                            )}
-                            <p className="text-sm text-gray-500 mt-1">Qty: {item.quantity} × {formatPrice(item.price)}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-purple-600">{formatPrice(item.price * item.quantity)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Pricing Breakdown */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
-                  <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <CreditCard size={18} className="text-purple-600" /> Pricing Breakdown
-                  </h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-gray-700">
-                      <span>Subtotal</span>
-                      <span className="font-medium">{formatPrice(selectedOrder.subtotal || selectedOrder.total)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-700">
-                      <span>Shipping</span>
-                      <span className="font-medium">{formatPrice(selectedOrder.shipping || 0)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-700">
-                      <span>Tax</span>
-                      <span className="font-medium">{formatPrice(selectedOrder.tax || 0)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-700 pt-2 border-t border-green-200">
-                      <span className="font-semibold text-lg">Total</span>
-                      <span className="font-bold text-xl text-purple-600">{formatPrice(selectedOrder.total)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="bg-gray-50 p-4 border-t border-gray-200">
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setShowOrderModal(false)}
-                    className="px-6 py-2.5 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Users */}
-        {tab === 'users' && (
-          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-3 rounded-xl shrink-0">
-                  <ShieldCheck className="text-white" size={24} />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">Users ({filteredUsers.length})</h2>
-                  <p className="text-sm text-gray-500">Manage user accounts and permissions</p>
-                </div>
-              </div>
-              <button
-                onClick={() => openUser(null)}
-                className="inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg transition-all"
-              >
-                <Plus size={16} /> Add User
-              </button>
-            </div>
-
-            {/* Locked Accounts Section */}
-            {Object.keys(lockedAccounts).length > 0 && (
-              <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
-                <h3 className="text-lg font-bold text-red-800 mb-3 flex items-center gap-2">
-                  <AlertCircle size={20} /> Locked Accounts
-                </h3>
-                <div className="grid grid-cols-1 gap-2">
-                  {Object.entries(lockedAccounts).map(([email, data]) => (
-                    <div key={email} className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-200">
-                      <div>
-                        <p className="font-semibold text-gray-900">{email}</p>
-                        <p className="text-xs text-gray-500">Locked at: {new Date(data.lockedAt).toLocaleString()}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Unlock account for ${email}?`)) {
-                            unlockAccount(email);
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-                      >
-                        Unlock
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="mb-4 sm:mb-6 space-y-3">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search users by name, email, or phone..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
-                />
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-                <div>
-                  <select
-                    value={filterRole}
-                    onChange={(e) => setFilterRole(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
-                  >
-                    <option value="all">All Roles</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Customer">Customer</option>
-                    <option value="Advertiser">Advertiser</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[800px]">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-100">
-                    <th className="py-3 pr-4">User</th>
-                    <th className="py-3 pr-4">Email</th>
-                    <th className="py-3 pr-4">Phone</th>
-                    <th className="py-3 pr-4">Role</th>
-                    <th className="py-3 pr-4">Status</th>
-                    <th className="py-3 pr-4">Joined</th>
-                    <th className="py-3 pr-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((u) => (
-                    <tr key={u.id} className="border-b border-gray-50 hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50 transition-all">
-                      <td className="py-4 pr-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md ${
-                            u.role === 'Admin' ? 'bg-gradient-to-br from-purple-500 to-indigo-600' :
-                            u.role === 'Advertiser' ? 'bg-gradient-to-br from-blue-500 to-cyan-600' :
-                            u.role === 'Other' ? 'bg-gradient-to-br from-orange-500 to-amber-600' :
-                            'bg-gradient-to-br from-gray-400 to-gray-500'
-                          }`}>
-                            {u.fullName?.charAt(0).toUpperCase() || 'U'}
-                          </div>
-                          <div>
-                            <span className="font-semibold text-gray-800 block">{u.fullName || '—'}</span>
-                            <span className="text-xs text-gray-500">{u.city || ''}, {u.state || ''}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 pr-4 text-gray-600">{u.email || '—'}</td>
-                      <td className="py-4 pr-4 text-gray-600">{u.phoneNumber || '—'}</td>
-                      <td className="py-4 pr-4">
-                        <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
-                          u.role === 'Admin' ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border border-purple-200' :
-                          u.role === 'Advertiser' ? 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 border border-blue-200' :
-                          u.role === 'Other' ? 'bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border border-orange-200' :
-                          'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border border-gray-200'
-                        }`}>
-                          {u.role === 'Other' ? (u.customRole || 'Custom') : (u.role || 'Customer')}
-                        </span>
-                      </td>
-                      <td className="py-4 pr-4">
-                        <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
-                          u.isActive ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-200' : 'bg-gradient-to-r from-red-100 to-rose-100 text-red-700 border border-red-200'
-                        }`}>
-                          {u.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="py-4 pr-4 text-gray-600">
-                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="py-4 pr-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openUser(u)} className="p-2.5 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors" title="Edit">
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={() => toggleUserActive(u.id)}
-                            className={`p-2.5 rounded-xl transition-colors ${u.isActive ? 'text-orange-500 hover:bg-orange-100' : 'text-green-500 hover:bg-green-100'}`}
-                            title={u.isActive ? 'Deactivate' : 'Activate'}
-                          >
-                            {u.isActive ? <X size={16} /> : <Plus size={16} />}
-                          </button>
-                          <button onClick={() => deleteUser(u.id)} className="p-2.5 text-red-500 hover:bg-red-100 rounded-xl transition-colors" title="Delete">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Header */}
-        {tab === 'header' && (
-          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-4 sm:mb-6">
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-3 rounded-xl shrink-0">
-                <Layout className="text-white" size={24} />
-              </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Header Settings</h2>
-                <p className="text-sm text-gray-500">Manage header logo, title, and menu items</p>
-              </div>
-            </div>
-            {headerData ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                    <input
-                      type="text"
-                      value={headerData.title || ''}
-                      onChange={(e) => setHeaderData({ ...headerData, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
-                    <div
-                      onDrop={handleLogoDrop}
-                      onDragOver={(e) => e.preventDefault()}
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-500 transition-colors cursor-pointer"
-                    >
-                      {logoPreview ? (
-                        <div className="relative inline-block">
-                          <img src={logoPreview} alt="Logo preview" className="h-16 object-contain mx-auto" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setLogoPreview(null);
-                              setHeaderData({ ...headerData, logoUrl: null });
-                            }}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                          >
-                            X
-                          </button>
-                        </div>
-                      ) : (
-                        <div>
-                          <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          <p className="mt-1 text-sm text-gray-600">Drop logo here or click to upload</p>
-                        </div>
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                        id="logo-upload"
-                      />
-                      <label
-                        htmlFor="logo-upload"
-                        className="mt-2 inline-block text-sm text-purple-600 hover:text-purple-700 cursor-pointer"
-                      >
-                        Choose file
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={headerData.showSearchIcon || false}
-                      onChange={(e) => setHeaderData({ ...headerData, showSearchIcon: e.target.checked })}
-                    />
-                    Show Search Icon
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={headerData.showUserIcon || false}
-                      onChange={(e) => setHeaderData({ ...headerData, showUserIcon: e.target.checked })}
-                    />
-                    Show User Icon
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={headerData.showCartIcon || false}
-                      onChange={(e) => setHeaderData({ ...headerData, showCartIcon: e.target.checked })}
-                    />
-                    Show Cart Icon
-                  </label>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700">Menu Items</label>
-                    <button
-                      onClick={() => openMenuItem()}
-                      className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      <Plus size={14} /> Add Item
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {headerData.menuItems && headerData.menuItems.length > 0 ? (
-                      headerData.menuItems.map((item, index) => (
-                        <div key={item.id || index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          {item.icon && (
-                            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-white border border-gray-200">
-                              <img src={item.icon} alt={item.label} className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} />
-                            </div>
-                          )}
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-800">{item.label}</p>
-                            <p className="text-xs text-gray-500">{item.link}</p>
-                            {item.subMenus && item.subMenus.length > 0 && (
-                              <p className="text-xs text-gray-400 mt-1">{item.subMenus.length} sub-menu(s)</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${item.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                              {item.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                            <button
-                              onClick={() => openMenuItem(index)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              onClick={() => deleteMenuItem(index)}
-                              className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-sm text-center py-4">No menu items yet. Click "Add Item" to create one.</p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={handleSaveHeader}
-                  disabled={saving}
-                  className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold disabled:opacity-60"
-                >
-                  {saving ? 'Saving...' : 'Save Header'}
-                </button>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-10">No header data found.</p>
-            )}
-          </div>
-        )}
 
-        {/* Footer */}
-        {tab === 'footer' && (
-          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-4 sm:mb-6">
-              <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-3 rounded-xl shrink-0">
-                <Layout className="text-white" size={24} />
-              </div>
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Footer Settings</h2>
-                <p className="text-sm text-gray-500">Manage footer content and links</p>
-              </div>
-            </div>
-            {footerData ? (
-              <div className="space-y-4 sm:space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                    <input
-                      type="text"
-                      value={footerData.companyName || ''}
-                      onChange={(e) => setFooterData({ ...footerData, companyName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Copyright Text</label>
-                    <input
-                      type="text"
-                      value={footerData.copyrightText || ''}
-                      onChange={(e) => setFooterData({ ...footerData, copyrightText: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea
-                    value={footerData.description || ''}
-                    onChange={(e) => setFooterData({ ...footerData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Social Links</label>
-                  <div className="space-y-2">
-                    {footerData.socialLinks && footerData.socialLinks.length > 0 ? (
-                      footerData.socialLinks.map((link, index) => (
-                        <div key={link.id || index} className="flex gap-2 items-start">
-                          <div className="flex-1 grid grid-cols-2 gap-2">
-                            <input
-                              type="text"
-                              value={link.name || ''}
-                              onChange={(e) => {
-                                const updatedLinks = [...footerData.socialLinks];
-                                updatedLinks[index] = { ...updatedLinks[index], name: e.target.value };
-                                setFooterData({ ...footerData, socialLinks: updatedLinks });
-                              }}
-                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                              placeholder="Name (e.g., Facebook)"
-                            />
-                            <input
-                              type="text"
-                              value={link.url || ''}
-                              onChange={(e) => {
-                                const updatedLinks = [...footerData.socialLinks];
-                                updatedLinks[index] = { ...updatedLinks[index], url: e.target.value };
-                                setFooterData({ ...footerData, socialLinks: updatedLinks });
-                              }}
-                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                              placeholder="URL (e.g., https://facebook.com/eshop)"
-                            />
-                          </div>
-                          <button
-                            onClick={() => {
-                              const updatedLinks = footerData.socialLinks.filter((_, i) => i !== index);
-                              setFooterData({ ...footerData, socialLinks: updatedLinks });
-                            }}
-                            className="p-2 text-red-500 hover:bg-red-100 rounded-lg"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-sm">No social links added</p>
-                    )}
-                    <button
-                      onClick={() => setFooterData({ 
-                        ...footerData, 
-                        socialLinks: [...(footerData.socialLinks || []), { 
-                          id: Date.now().toString(), 
-                          name: '', 
-                          url: '', 
-                          displayOrder: (footerData.socialLinks?.length || 0),
-                          isActive: true 
-                        }] 
-                      })}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      + Add Social Link
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Contact Information</label>
-                  <div className="space-y-3 bg-gray-50 rounded-lg p-4">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={footerData.contactInfo?.email || ''}
-                        onChange={(e) => setFooterData({ 
-                          ...footerData, 
-                          contactInfo: { 
-                            ...(footerData.contactInfo || { id: Date.now().toString() }), 
-                            email: e.target.value 
-                          } 
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                        placeholder="contact@eshop.com"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Phone</label>
-                      <input
-                        type="text"
-                        value={footerData.contactInfo?.phone || ''}
-                        onChange={(e) => setFooterData({ 
-                          ...footerData, 
-                          contactInfo: { 
-                            ...(footerData.contactInfo || { id: Date.now().toString() }), 
-                            phone: e.target.value 
-                          } 
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                        placeholder="+1 234 567 890"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Address</label>
-                      <input
-                        type="text"
-                        value={footerData.contactInfo?.address || ''}
-                        onChange={(e) => setFooterData({ 
-                          ...footerData, 
-                          contactInfo: { 
-                            ...(footerData.contactInfo || { id: Date.now().toString() }), 
-                            address: e.target.value 
-                          } 
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                        placeholder="123 Main Street"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">City</label>
-                        <input
-                          type="text"
-                          value={footerData.contactInfo?.city || ''}
-                          onChange={(e) => setFooterData({ 
-                            ...footerData, 
-                            contactInfo: { 
-                              ...(footerData.contactInfo || { id: Date.now().toString() }), 
-                              city: e.target.value 
-                            } 
-                          })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                          placeholder="New York"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">State</label>
-                        <input
-                          type="text"
-                          value={footerData.contactInfo?.state || ''}
-                          onChange={(e) => setFooterData({ 
-                            ...footerData, 
-                            contactInfo: { 
-                              ...(footerData.contactInfo || { id: Date.now().toString() }), 
-                              state: e.target.value 
-                            } 
-                          })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                          placeholder="NY"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Zip Code</label>
-                        <input
-                          type="text"
-                          value={footerData.contactInfo?.zipCode || ''}
-                          onChange={(e) => setFooterData({ 
-                            ...footerData, 
-                            contactInfo: { 
-                              ...(footerData.contactInfo || { id: Date.now().toString() }), 
-                              zipCode: e.target.value 
-                            } 
-                          })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                          placeholder="10001"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Country</label>
-                        <input
-                          type="text"
-                          value={footerData.contactInfo?.country || ''}
-                          onChange={(e) => setFooterData({ 
-                            ...footerData, 
-                            contactInfo: { 
-                              ...(footerData.contactInfo || { id: Date.now().toString() }), 
-                              country: e.target.value 
-                            } 
-                          })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                          placeholder="USA"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700">Footer Sections</label>
-                    <button
-                      onClick={() => openFooterSection()}
-                      className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      <Plus size={14} /> Add Section
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {footerData.sections && footerData.sections.length > 0 ? (
-                      footerData.sections.map((section, sectionIndex) => (
-                        <div key={section.id || sectionIndex} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <p className="font-medium text-gray-800">{section.title}</p>
-                              <p className="text-xs text-gray-500">{section.links?.length || 0} link(s)</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${section.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                                {section.isActive ? 'Active' : 'Inactive'}
-                              </span>
-                              <button
-                                onClick={() => openFooterSection(sectionIndex)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => deleteFooterSection(sectionIndex)}
-                                className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            {section.links && section.links.length > 0 ? (
-                              section.links.map((link, linkIndex) => (
-                                <div key={link.id || linkIndex} className="flex items-center justify-between pl-4 border-l-2 border-gray-200">
-                                  <div>
-                                    <p className="text-sm text-gray-700">{link.label}</p>
-                                    <p className="text-xs text-gray-500">{link.link}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => openFooterLink(sectionIndex, linkIndex)}
-                                      className="p-1 text-blue-600 hover:bg-blue-100 rounded"
-                                    >
-                                      <Pencil size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => deleteFooterLink(sectionIndex, linkIndex)}
-                                      className="p-1 text-red-500 hover:bg-red-100 rounded"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-gray-500 text-sm pl-4">No links</p>
-                            )}
-                            <button
-                              onClick={() => openFooterLink(sectionIndex)}
-                              className="text-sm text-blue-600 hover:text-blue-700 font-medium pl-4"
-                            >
-                              + Add Link
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-sm text-center py-4">No sections yet. Click "Add Section" to create one.</p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={handleSaveFooter}
-                  disabled={saving}
-                  className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold disabled:opacity-60"
-                >
-                  {saving ? 'Saving...' : 'Save Footer'}
-                </button>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-10">No footer data found.</p>
-            )}
-          </div>
-        )}
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Admin Dashboard</h1>
 
-        {/* Seeding */}
-        {tab === 'seeding' && (
-          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-4 sm:mb-6">
-              <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-3 rounded-xl shrink-0">
-                <Database className="text-white" size={24} />
+                <p className="opacity-90 text-xs sm:text-sm md:text-base">Welcome back, {user?.fullName}</p>
+
               </div>
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Database Seeding</h2>
-                <p className="text-sm text-gray-500">Seed the database with sample data</p>
-              </div>
+
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
-              <p className="text-sm text-amber-800">
-                <strong>Warning:</strong> Seeding will add sample data to your database. This operation cannot be undone.
-              </p>
-            </div>
+
             <button
+
               onClick={handleSeedDatabase}
-              disabled={seeding}
-              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white py-3 rounded-xl font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+
+              className="bg-white text-purple-600 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-pink-100 transition-colors flex items-center gap-1 sm:gap-2 text-xs sm:text-sm md:text-base"
+
             >
-              <Database size={20} />
-              {seeding ? 'Seeding...' : 'Seed Database'}
+
+              <Database size={14} sm:size={16} />
+
+              <span className="hidden sm:inline">Seed Database</span>
+
+              <span className="sm:hidden">Seed</span>
+
             </button>
+
           </div>
-        )}
+
+        </div>
+
       </div>
 
-      {/* Product Modal */}
-      {productModal.open && (
-        <Modal title={productModal.data ? 'Edit Product' : 'Add Product'} onClose={() => setProductModal({ open: false, data: null })}>
-          <form onSubmit={saveProduct} className="space-y-5">
-            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
-              <Field label="Name" value={form.name} onChange={(v) => setField('name', v)} required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={form.description || ''}
-                onChange={(e) => setField('description', e.target.value)}
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                placeholder="Enter product description..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select
-                value={form.categoryId || ''}
-                onChange={(e) => {
-                  setField('categoryId', e.target.value);
-                  setField('subCategoryId', ''); // Reset subcategory when category changes
-                }}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              >
-                <option value="">Select category</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
-              <select
-                value={form.subCategoryId || ''}
-                onChange={(e) => setField('subCategoryId', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              >
-                <option value="">Select subcategory</option>
-                {subCategories.filter(sc => sc.parentCategoryId === form.categoryId).map((sc) => (
-                  <option key={sc.id} value={sc.id}>{sc.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
-                <Field label="Price" type="number" value={form.price} onChange={(v) => setField('price', v)} required />
-              </div>
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
-                <Field label="Original Price" type="number" value={form.originalPrice} onChange={(v) => setField('originalPrice', v)} />
-              </div>
-              <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border border-red-100">
-                <Field label="Discount %" type="number" value={form.discountPercentage} onChange={(v) => setField('discountPercentage', v)} />
-              </div>
-            </div>
-            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
-              <div
-                onDrop={handleProductImageDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-blue-300 rounded-xl p-6 text-center hover:border-purple-500 hover:bg-purple-50 transition-all cursor-pointer"
-              >
-                {productImagePreview ? (
-                  <div className="relative inline-block">
-                    <img src={productImagePreview} alt="Product preview" className="h-40 object-contain mx-auto rounded-lg shadow-md" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProductImagePreview(null);
-                        setForm({ ...form, imageUrl: '' });
-                      }}
-                      className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm hover:bg-red-600 shadow-lg"
-                    >
-                      X
-                    </button>
-                  </div>
-                ) : (
+
+
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+
+        <div className="flex flex-col lg:flex-row gap-2 sm:gap-3 md:gap-4 sm:gap-6">
+
+          {/* Mobile Sidebar */}
+
+          {mobileMenuOpen && (
+
+            <div className="lg:hidden fixed inset-0 z-50 pt-16">
+
+              <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)}></div>
+
+              <div className="relative bg-white rounded-xl shadow-lg p-4 m-2 max-w-sm max-h-[80vh] overflow-y-auto">
+
+                <nav className="space-y-4">
+
+                  {/* Management Section */}
+
                   <div>
-                    <svg className="mx-auto h-16 w-16 text-blue-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <p className="mt-2 text-sm text-gray-600 font-medium">Drop product image here or click to upload</p>
-                    <p className="text-xs text-gray-400 mt-1">PNG, JPG, GIF up to 5MB</p>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProductImageUpload}
-                  className="hidden"
-                  id="product-image-upload"
-                />
-                <label
-                  htmlFor="product-image-upload"
-                  className="mt-3 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
-                >
-                  Choose file
-                </label>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
-                <Field label="Stock" type="number" value={form.stock} onChange={(v) => setField('stock', v)} />
-              </div>
-              <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-4 border border-yellow-100">
-                <Field label="Rating" type="number" value={form.rating} onChange={(v) => setField('rating', v)} />
-              </div>
-              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-100">
-                <Field label="Reviews" type="number" value={form.reviewCount} onChange={(v) => setField('reviewCount', v)} />
-              </div>
-            </div>
-            <div className="flex items-center gap-6 bg-gray-50 rounded-xl p-4">
-              <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={!!form.isFeatured} onChange={(e) => setField('isFeatured', e.target.checked)} className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500" />
-                <span className="font-medium">Featured Product</span>
-              </label>
-              <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={form.isActive !== false} onChange={(e) => setField('isActive', e.target.checked)} className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500" />
-                <span className="font-medium">Active</span>
-              </label>
-            </div>
 
-            {/* Colors Section */}
-            <div className="bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-4 border border-pink-100">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Available Colors</h3>
-                <button type="button" onClick={addColor} className="text-xs bg-pink-500 text-white px-3 py-1.5 rounded-lg hover:bg-pink-600 transition-colors">
-                  + Add Color
-                </button>
-              </div>
-              {/* Excel-like table for colors */}
-              <div className="bg-white rounded-lg border border-pink-200 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-pink-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Color</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Code</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Images</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.availableColors?.map((color, colorIndex) => (
-                      <tr key={colorIndex} className="border-t border-pink-100 hover:bg-pink-50/50">
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={color.name}
-                            onChange={(e) => {
-                              const updatedColors = [...form.availableColors];
-                              updatedColors[colorIndex] = { ...updatedColors[colorIndex], name: e.target.value };
-                              setForm({ ...form, availableColors: updatedColors });
-                            }}
-                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={color.code || '#000000'}
-                              onChange={(e) => {
-                                const updatedColors = [...form.availableColors];
-                                updatedColors[colorIndex] = { ...updatedColors[colorIndex], code: e.target.value };
-                                setForm({ ...form, availableColors: updatedColors });
-                              }}
-                              className="w-8 h-8 rounded cursor-pointer border-0"
-                            />
-                            <input
-                              type="text"
-                              value={color.code || ''}
-                              onChange={(e) => {
-                                const updatedColors = [...form.availableColors];
-                                updatedColors[colorIndex] = { ...updatedColors[colorIndex], code: e.target.value };
-                                setForm({ ...form, availableColors: updatedColors });
-                              }}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm"
-                              placeholder="#000000"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            {/* Drag-drop zone for color images */}
-                            <div
-                              className={`w-8 h-8 border-2 border-dashed rounded flex items-center justify-center cursor-pointer transition-colors ${
-                                dragOverColor === colorIndex ? 'border-pink-400 bg-pink-50' : 'border-gray-300 hover:border-pink-300'
-                              }`}
-                              onDragOver={(e) => { e.preventDefault(); setDragOverColor(colorIndex); }}
-                              onDragLeave={() => setDragOverColor(null)}
-                              onDrop={(e) => handleColorImageDrop(e, colorIndex)}
-                              title="Click to upload or drag images"
-                            >
-                              <input
-                                type="file"
-                                id={`color-image-${colorIndex}`}
-                                className="hidden"
-                                multiple
-                                accept="image/*"
-                                onChange={(e) => handleColorImageUpload(colorIndex, e.target.files)}
-                              />
-                              <label htmlFor={`color-image-${colorIndex}`} className="cursor-pointer w-full h-full flex items-center justify-center">
-                                <Plus size={14} className="text-gray-400" />
-                              </label>
-                            </div>
-                            {/* Color images count */}
-                            {color.images && color.images.length > 0 && (
-                              <span className="text-xs text-gray-500">{color.images.length} images</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2">
-                          <button
-                            type="button"
-                            onClick={() => removeColor(colorIndex)}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {(!form.availableColors || form.availableColors.length === 0) && (
-                      <tr>
-                        <td colSpan="4" className="px-4 py-4 text-center text-sm text-gray-500">
-                          No colors added yet. Click "+ Add Color" to add one.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {/* Color images preview section */}
-              {form.availableColors?.some(c => c.images && c.images.length > 0) && (
-                <div className="mt-3 space-y-2">
-                  {form.availableColors.map((color, colorIndex) => (
-                    color.images && color.images.length > 0 && (
-                      <div key={colorIndex} className="bg-white rounded-lg border border-pink-200 p-2">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: color.code }}></div>
-                          <span className="text-xs font-medium text-gray-600">{color.name} Images</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {color.images.map((img, imgIndex) => (
-                            <div key={imgIndex} className="relative group">
-                              <img src={img} alt={`${color.name} ${imgIndex + 1}`} className="w-12 h-12 object-cover rounded border border-gray-200" />
-                              <button
-                                type="button"
-                                onClick={() => removeColorImage(colorIndex, imgIndex)}
-                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X size={10} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  ))}
-                </div>
-              )}
-            </div>
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Management</h3>
 
-            {/* Sizes Section */}
-            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-4 border border-indigo-100">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Available Sizes</h3>
-                <button type="button" onClick={addSize} className="text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-600 transition-colors">
-                  + Add Size
-                </button>
-              </div>
-              {/* Excel-like table for sizes */}
-              <div className="bg-white rounded-lg border border-indigo-200 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-indigo-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Size</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.availableSizes?.map((size, index) => (
-                      <tr key={index} className="border-t border-indigo-100 hover:bg-indigo-50/50">
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={size}
-                            onChange={(e) => {
-                              const updatedSizes = [...form.availableSizes];
-                              updatedSizes[index] = e.target.value;
-                              setForm({ ...form, availableSizes: updatedSizes });
-                            }}
-                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <button
-                            type="button"
-                            onClick={() => removeSize(index)}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {(!form.availableSizes || form.availableSizes.length === 0) && (
-                      <tr>
-                        <td colSpan="2" className="px-4 py-4 text-center text-sm text-gray-500">
-                          No sizes added yet. Click "+ Add Size" to add one.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                    <div className="space-y-2">
 
-            {/* Variants Section */}
-            <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-100">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Product Variants (Color + Size)</h3>
-                <button type="button" onClick={() => openVariant()} className="text-xs bg-purple-500 text-white px-3 py-1.5 rounded-lg hover:bg-purple-600 transition-colors">
-                  + Add Variant
-                </button>
-              </div>
-              <div className="space-y-2">
-                {form.variants?.map((variant, index) => (
-                  <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-purple-200">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full border-2 border-gray-200" style={{ backgroundColor: variant.colorCode }}></div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{variant.color} - {variant.size}</p>
-                        <p className="text-xs text-gray-500">₹{variant.price} | Stock: {variant.stock}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => openVariant(index)} className="text-blue-500 hover:text-blue-600">
-                        <Pencil size={16} />
-                      </button>
-                      <button type="button" onClick={() => deleteVariant(index)} className="text-red-500 hover:text-red-600">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                      {tabs.filter(tab => tab.section === 'management').map(tab => (
 
-            {/* Warranty Section */}
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Warranty Information</label>
-              <input
-                type="text"
-                value={form.warranty || ''}
-                onChange={(e) => setField('warranty', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all mb-3"
-                placeholder="e.g., 1 Year Manufacturer Warranty"
-              />
-              <label className="block text-sm font-medium text-gray-700 mb-2">Warranty Icon (Emoji or Image URL)</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={form.warrantyIcon || ''}
-                  onChange={(e) => setField('warrantyIcon', e.target.value)}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  placeholder="🛡️ or image URL"
-                />
-                <button
-                  type="button"
-                  onClick={() => document.getElementById('warrantyIconUpload').click()}
-                  className="px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors"
-                >
-                  Upload
-                </button>
-                <input
-                  type="file"
-                  id="warrantyIconUpload"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setField('warrantyIcon', reader.result);
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-              </div>
-              {form.warrantyIcon && (
-                <div className="mt-2 flex items-center gap-2">
-                  {form.warrantyIcon.startsWith('data:') ? (
-                    <img src={form.warrantyIcon} alt="Warranty icon" className="w-8 h-8 object-contain" />
-                  ) : (
-                    <span className="text-2xl">{form.warrantyIcon}</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setField('warrantyIcon', '')}
-                    className="text-red-500 hover:text-red-600 text-sm"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Specifications Section */}
-            <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-100">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Product Specifications</h3>
-                <button type="button" onClick={addSpecification} className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 transition-colors">
-                  + Add Specification
-                </button>
-              </div>
-              <div className="space-y-2">
-                {form.specifications?.map((spec, index) => (
-                  <div key={index} className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={spec.name}
-                      onChange={(e) => {
-                        const updatedSpecs = [...form.specifications];
-                        updatedSpecs[index] = { ...updatedSpecs[index], name: e.target.value };
-                        setForm({ ...form, specifications: updatedSpecs });
-                      }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
-                      placeholder="Specification name (e.g., Display)"
-                    />
-                    <input
-                      type="text"
-                      value={spec.value}
-                      onChange={(e) => {
-                        const updatedSpecs = [...form.specifications];
-                        updatedSpecs[index] = { ...updatedSpecs[index], value: e.target.value };
-                        setForm({ ...form, specifications: updatedSpecs });
-                      }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
-                      placeholder="Value (e.g., 6.5 inches)"
-                    />
-                    <button type="button" onClick={() => deleteSpecification(index)} className="text-red-500 hover:text-red-600 p-2">
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
-                {(!form.specifications || form.specifications.length === 0) && (
-                  <p className="text-sm text-gray-500 italic">No specifications added yet.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Dynamic Sections Section */}
-            <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-4 border border-violet-100">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Dynamic Sections (Warranty, Shipping, etc.)</h3>
-                <button type="button" onClick={addDynamicSection} className="text-xs bg-violet-500 text-white px-3 py-1.5 rounded-lg hover:bg-violet-600 transition-colors">
-                  + Add Section
-                </button>
-              </div>
-              <div className="space-y-3">
-                {form.dynamicSections?.map((section, index) => (
-                  <div key={index} className="bg-white p-3 rounded-lg border border-violet-200">
-                    <div className="flex gap-2 mb-2">
-                      <div className="flex flex-col gap-1">
-                        <input
-                          type="text"
-                          value={section.icon}
-                          onChange={(e) => {
-                            const updatedSections = [...form.dynamicSections];
-                            updatedSections[index] = { ...updatedSections[index], icon: e.target.value };
-                            setForm({ ...form, dynamicSections: updatedSections });
-                          }}
-                          className="w-12 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm text-center"
-                          placeholder="📄"
-                          title="Icon (emoji)"
-                        />
                         <button
-                          type="button"
-                          onClick={() => document.getElementById(`sectionIconUpload${index}`).click()}
-                          className="w-12 px-2 py-1 bg-violet-500 text-white rounded text-xs hover:bg-violet-600"
-                        >
-                          Upload
-                        </button>
-                        <input
-                          type="file"
-                          id={`sectionIconUpload${index}`}
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                const updatedSections = [...form.dynamicSections];
-                                updatedSections[index] = { ...updatedSections[index], icon: reader.result };
-                                setForm({ ...form, dynamicSections: updatedSections });
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </div>
-                      <input
-                        type="text"
-                        value={section.title}
-                        onChange={(e) => {
-                          const updatedSections = [...form.dynamicSections];
-                          updatedSections[index] = { ...updatedSections[index], title: e.target.value };
-                          setForm({ ...form, dynamicSections: updatedSections });
-                        }}
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
-                        placeholder="Section title (e.g., Warranty)"
-                      />
-                      <button type="button" onClick={() => deleteDynamicSection(index)} className="text-red-500 hover:text-red-600 p-2">
-                        <X size={16} />
-                      </button>
-                    </div>
-                    {section.icon && (
-                      <div className="flex items-center gap-2 mb-2">
-                        {section.icon.startsWith('data:') ? (
-                          <img src={section.icon} alt="Section icon" className="w-6 h-6 object-contain" />
-                        ) : (
-                          <span className="text-xl">{section.icon}</span>
-                        )}
-                        <button
-                          type="button"
+
+                          key={tab.id}
+
                           onClick={() => {
-                            const updatedSections = [...form.dynamicSections];
-                            updatedSections[index] = { ...updatedSections[index], icon: '' };
-                            setForm({ ...form, dynamicSections: updatedSections });
+
+                            setActiveTab(tab.id);
+
+                            setMobileMenuOpen(false);
+
                           }}
-                          className="text-red-500 hover:text-red-600 text-xs"
+
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+
+                            activeTab === tab.id
+
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+
+                              : 'hover:bg-gray-100 text-gray-700'
+
+                          }`}
+
                         >
-                          Clear
+
+                          <tab.icon size={18} />
+
+                          <span className="font-medium text-sm">{tab.label}</span>
+
                         </button>
-                      </div>
-                    )}
-                    <textarea
-                      value={section.content}
-                      onChange={(e) => {
-                        const updatedSections = [...form.dynamicSections];
-                        updatedSections[index] = { ...updatedSections[index], content: e.target.value };
-                        setForm({ ...form, dynamicSections: updatedSections });
-                      }}
-                      className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
-                      placeholder="Section content..."
-                      rows={2}
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <select
-                        value={section.sectionType}
-                        onChange={(e) => {
-                          const updatedSections = [...form.dynamicSections];
-                          updatedSections[index] = { ...updatedSections[index], sectionType: e.target.value };
-                          setForm({ ...form, dynamicSections: updatedSections });
-                        }}
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
+
+                      ))}
+
+                    </div>
+
+                  </div>
+
+
+
+                  {/* Personal Section */}
+
+                  <div>
+
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Personal</h3>
+
+                    <div className="space-y-2">
+
+                      {tabs.filter(tab => tab.section === 'personal').map(tab => (
+
+                        <button
+
+                          key={tab.id}
+
+                          onClick={() => {
+
+                            setActiveTab(tab.id);
+
+                            setMobileMenuOpen(false);
+
+                          }}
+
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+
+                            activeTab === tab.id
+
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+
+                              : 'hover:bg-gray-100 text-gray-700'
+
+                          }`}
+
+                        >
+
+                          <tab.icon size={18} />
+
+                          <span className="font-medium text-sm">{tab.label}</span>
+
+                        </button>
+
+                      ))}
+
+                    </div>
+
+                  </div>
+
+
+
+                  {/* Configuration Section */}
+
+                  <div>
+
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">Configuration</h3>
+
+                    <div className="space-y-2">
+
+                      {tabs.filter(tab => tab.section === 'configuration').map(tab => (
+
+                        <button
+
+                          key={tab.id}
+
+                          onClick={() => {
+
+                            setActiveTab(tab.id);
+
+                            setMobileMenuOpen(false);
+
+                          }}
+
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+
+                            activeTab === tab.id
+
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+
+                              : 'hover:bg-gray-100 text-gray-700'
+
+                          }`}
+
+                        >
+
+                          <tab.icon size={18} />
+
+                          <span className="font-medium text-sm">{tab.label}</span>
+
+                        </button>
+
+                      ))}
+
+                    </div>
+
+                  </div>
+
+                </nav>
+
+              </div>
+
+            </div>
+
+          )}
+
+
+
+          {/* Desktop Sidebar */}
+
+          <aside className="hidden lg:block lg:w-64 flex-shrink-0">
+
+            <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 sticky top-24">
+
+              <nav className="space-y-4 sm:space-y-6">
+
+                {/* Management Section */}
+
+                <div>
+
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-4">Management</h3>
+
+                  <div className="space-y-2">
+
+                    {tabs.filter(tab => tab.section === 'management').map(tab => (
+
+                      <button
+
+                        key={tab.id}
+
+                        onClick={() => setActiveTab(tab.id)}
+
+                        className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg transition-colors ${
+
+                          activeTab === tab.id
+
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+
+                            : 'hover:bg-gray-100 text-gray-700'
+
+                        }`}
+
                       >
-                        <option value="text">Text</option>
-                        <option value="list">List</option>
-                        <option value="table">Table</option>
-                      </select>
-                      <input
-                        type="number"
-                        value={section.displayOrder}
-                        onChange={(e) => {
-                          const updatedSections = [...form.dynamicSections];
-                          updatedSections[index] = { ...updatedSections[index], displayOrder: parseInt(e.target.value) };
-                          setForm({ ...form, dynamicSections: updatedSections });
-                        }}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-violet-500 text-sm"
-                        placeholder="Order"
-                        title="Display order"
-                      />
-                      <label className="flex items-center gap-1 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={section.isActive}
-                          onChange={(e) => {
-                            const updatedSections = [...form.dynamicSections];
-                            updatedSections[index] = { ...updatedSections[index], isActive: e.target.checked };
-                            setForm({ ...form, dynamicSections: updatedSections });
-                          }}
-                          className="w-4 h-4 text-violet-600 rounded"
-                        />
-                        Active
-                      </label>
-                    </div>
-                  </div>
-                ))}
-                {(!form.dynamicSections || form.dynamicSections.length === 0) && (
-                  <p className="text-sm text-gray-500 italic">No dynamic sections added yet. Add sections like Warranty, Shipping Info, Returns, etc.</p>
-                )}
-              </div>
-            </div>
 
-            {/* Trust Badges Section */}
-            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl p-4 border border-cyan-100">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Trust Badges (Free Shipping, Secure Payment, etc.)</h3>
-                <button type="button" onClick={addTrustBadge} className="text-xs bg-cyan-500 text-white px-3 py-1.5 rounded-lg hover:bg-cyan-600 transition-colors">
-                  + Add Badge
-                </button>
-              </div>
-              <div className="space-y-3">
-                {form.trustBadges?.map((badge, index) => (
-                  <div key={index} className="bg-white p-3 rounded-lg border border-cyan-200">
-                    <div className="flex gap-2 mb-2">
-                      <div className="flex flex-col gap-1">
-                        <input
-                          type="text"
-                          value={badge.icon}
-                          onChange={(e) => {
-                            const updatedBadges = [...form.trustBadges];
-                            updatedBadges[index] = { ...updatedBadges[index], icon: e.target.value };
-                            setForm({ ...form, trustBadges: updatedBadges });
-                          }}
-                          className="w-12 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-cyan-500 text-sm text-center"
-                          placeholder="📦"
-                          title="Icon (emoji)"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById(`badgeIconUpload${index}`).click()}
-                          className="w-12 px-2 py-1 bg-cyan-500 text-white rounded text-xs hover:bg-cyan-600"
-                        >
-                          Upload
-                        </button>
-                        <input
-                          type="file"
-                          id={`badgeIconUpload${index}`}
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                const updatedBadges = [...form.trustBadges];
-                                updatedBadges[index] = { ...updatedBadges[index], icon: reader.result };
-                                setForm({ ...form, trustBadges: updatedBadges });
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </div>
-                      <input
-                        type="text"
-                        value={badge.label}
-                        onChange={(e) => {
-                          const updatedBadges = [...form.trustBadges];
-                          updatedBadges[index] = { ...updatedBadges[index], label: e.target.value };
-                          setForm({ ...form, trustBadges: updatedBadges });
-                        }}
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-cyan-500 text-sm"
-                        placeholder="Badge label (e.g., Free shipping over ₹100)"
-                      />
-                      <button type="button" onClick={() => deleteTrustBadge(index)} className="text-red-500 hover:text-red-600 p-2">
-                        <X size={16} />
+                        <tab.icon size={16} sm:size={18} md:size={20} />
+
+                        <span className="font-medium text-xs sm:text-sm md:text-base">{tab.label}</span>
+
                       </button>
-                    </div>
-                    {badge.icon && (
-                      <div className="flex items-center gap-2 mb-2">
-                        {badge.icon.startsWith('data:') ? (
-                          <img src={badge.icon} alt="Badge icon" className="w-6 h-6 object-contain" />
-                        ) : (
-                          <span className="text-xl">{badge.icon}</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updatedBadges = [...form.trustBadges];
-                            updatedBadges[index] = { ...updatedBadges[index], icon: '' };
-                            setForm({ ...form, trustBadges: updatedBadges });
-                          }}
-                          className="text-red-500 hover:text-red-600 text-xs"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={badge.displayOrder}
-                        onChange={(e) => {
-                          const updatedBadges = [...form.trustBadges];
-                          updatedBadges[index] = { ...updatedBadges[index], displayOrder: parseInt(e.target.value) };
-                          setForm({ ...form, trustBadges: updatedBadges });
-                        }}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-cyan-500 text-sm"
-                        placeholder="Order"
-                        title="Display order"
-                      />
-                      <label className="flex items-center gap-1 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={badge.isActive}
-                          onChange={(e) => {
-                            const updatedBadges = [...form.trustBadges];
-                            updatedBadges[index] = { ...updatedBadges[index], isActive: e.target.checked };
-                            setForm({ ...form, trustBadges: updatedBadges });
-                          }}
-                          className="w-4 h-4 text-cyan-600 rounded"
-                        />
-                        Active
-                      </label>
-                    </div>
+
+                    ))}
+
                   </div>
-                ))}
-                {(!form.trustBadges || form.trustBadges.length === 0) && (
-                  <p className="text-sm text-gray-500 italic">No trust badges added yet. Add badges like Free Shipping, Secure Payment, Easy Returns, etc.</p>
-                )}
-              </div>
-            </div>
 
-            <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl font-semibold disabled:opacity-60 hover:shadow-lg transition-all">
-              {saving ? 'Saving...' : 'Save Product'}
-            </button>
-          </form>
-        </Modal>
-      )}
-
-      {/* Variant Modal */}
-      {variantModal.open && (
-        <Modal title={variantModal.index !== null ? 'Edit Variant' : 'Add Variant'} onClose={() => setVariantModal({ open: false, data: null, index: null })}>
-          <form onSubmit={saveVariant} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color Name</label>
-                <input
-                  type="text"
-                  value={variantModal.data?.color || ''}
-                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, color: e.target.value } })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  placeholder="e.g., Red"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color Code</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={variantModal.data?.colorCode || '#000000'}
-                    onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, colorCode: e.target.value } })}
-                    className="w-12 h-10 rounded cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={variantModal.data?.colorCode || '#000000'}
-                    onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, colorCode: e.target.value } })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                    placeholder="#FF0000"
-                    required
-                  />
                 </div>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
-              <input
-                type="text"
-                value={variantModal.data?.size || ''}
-                onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, size: e.target.value } })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                placeholder="e.g., S, M, L, XL"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
-                <input
-                  type="number"
-                  value={variantModal.data?.price || 0}
-                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, price: parseFloat(e.target.value) || 0 } })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Original Price</label>
-                <input
-                  type="number"
-                  value={variantModal.data?.originalPrice || ''}
-                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, originalPrice: e.target.value ? parseFloat(e.target.value) : null } })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
-                <input
-                  type="number"
-                  value={variantModal.data?.discountPercentage || 0}
-                  onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, discountPercentage: parseFloat(e.target.value) || 0 } })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  min="0"
-                  max="100"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-              <input
-                type="number"
-                value={variantModal.data?.stock || 0}
-                onChange={(e) => setVariantModal({ ...variantModal, data: { ...variantModal.data, stock: parseInt(e.target.value) || 0 } })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                required
-              />
-            </div>
-            <button type="submit" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all">
-              Save Variant
-            </button>
-          </form>
-        </Modal>
-      )}
 
-      {/* Category Modal */}
-      {categoryModal.open && (
-        <Modal title={categoryModal.data ? 'Edit Category' : 'Add Category'} onClose={() => setCategoryModal({ open: false, data: null })}>
-          <form onSubmit={saveCategory} className="space-y-4">
-            <Field label="Name" value={form.name} onChange={(v) => setField('name', v)} required />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={form.description || ''}
-                onChange={(e) => setField('description', e.target.value)}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category Image</label>
-              <div
-                onDrop={handleCategoryImageDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-500 transition-colors cursor-pointer"
-              >
-                {categoryImagePreview ? (
-                  <div className="relative inline-block">
-                    <img src={categoryImagePreview} alt="Category preview" className="h-32 object-contain mx-auto" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCategoryImagePreview(null);
-                        setForm({ ...form, imageUrl: '' });
-                      }}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      X
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <p className="mt-1 text-sm text-gray-600">Drop category image here or click to upload</p>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCategoryImageUpload}
-                  className="hidden"
-                  id="category-image-upload"
-                />
-                <label
-                  htmlFor="category-image-upload"
-                  className="mt-2 inline-block text-sm text-purple-600 hover:text-purple-700 cursor-pointer"
-                >
-                  Choose file
-                </label>
-              </div>
-            </div>
-            <Field label="Display Order" type="number" value={form.displayOrder} onChange={(v) => setField('displayOrder', v)} />
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isActive !== false} onChange={(e) => setField('isActive', e.target.checked)} />
-              Active
-            </label>
-            <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold disabled:opacity-60">
-              {saving ? 'Saving...' : 'Save Category'}
-            </button>
-          </form>
-        </Modal>
-      )}
 
-      {/* Subcategory Modal */}
-      {subCategoryModal.open && (
-        <Modal title={subCategoryModal.data ? 'Edit Subcategory' : 'Add Subcategory'} onClose={() => setSubCategoryModal({ open: false, data: null })}>
-          <form onSubmit={saveSubCategory} className="space-y-4">
-            <Field label="Name" value={form.name} onChange={(v) => setField('name', v)} required />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Parent Category</label>
-              <select
-                value={form.parentCategoryId || ''}
-                onChange={(e) => setField('parentCategoryId', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                required
-              >
-                <option value="">Select a category</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={form.description || ''}
-                onChange={(e) => setField('description', e.target.value)}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory Image</label>
-              <div
-                onDrop={handleCategoryImageDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-500 transition-colors cursor-pointer"
-              >
-                {categoryImagePreview ? (
-                  <div className="relative inline-block">
-                    <img src={categoryImagePreview} alt="Subcategory preview" className="h-32 object-contain mx-auto" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCategoryImagePreview(null);
-                        setForm({ ...form, imageUrl: '' });
-                      }}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      X
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <p className="mt-1 text-sm text-gray-600">Drop subcategory image here or click to upload</p>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCategoryImageUpload}
-                  className="hidden"
-                  id="subcategory-image-upload"
-                />
-                <label
-                  htmlFor="subcategory-image-upload"
-                  className="mt-2 inline-block text-sm text-purple-600 hover:text-purple-700 cursor-pointer"
-                >
-                  Choose file
-                </label>
-              </div>
-            </div>
-            <Field label="Display Order" type="number" value={form.displayOrder} onChange={(v) => setField('displayOrder', v)} />
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isActive !== false} onChange={(e) => setField('isActive', e.target.checked)} />
-              Active
-            </label>
-            <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold disabled:opacity-60">
-              {saving ? 'Saving...' : 'Save Subcategory'}
-            </button>
-          </form>
-        </Modal>
-      )}
 
-      {/* User Modal */}
-      {userModal.open && (
-        <Modal title={userModal.data?.id ? 'Edit User' : 'Add User'} onClose={() => setUserModal({ open: false, data: null })}>
-          <form onSubmit={saveUser} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-              <input
-                type="text"
-                value={userModal.data?.fullName || ''}
-                onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, fullName: e.target.value } })}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={userModal.data?.email || ''}
-                onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, email: e.target.value } })}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-              <input
-                type="tel"
-                value={userModal.data?.phoneNumber || ''}
-                onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, phoneNumber: e.target.value } })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <input
-                type="text"
-                value={userModal.data?.address || ''}
-                onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, address: e.target.value } })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input
-                  type="text"
-                  value={userModal.data?.city || ''}
-                  onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, city: e.target.value } })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                <input
-                  type="text"
-                  value={userModal.data?.state || ''}
-                  onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, state: e.target.value } })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code</label>
-              <input
-                type="text"
-                value={userModal.data?.zipCode || ''}
-                onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, zipCode: e.target.value } })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <select
-                value={userModal.data?.role || 'Customer'}
-                onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, role: e.target.value } })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              >
-                <option value="Customer">Customer</option>
-                <option value="Admin">Admin</option>
-                <option value="Advertiser">Advertiser</option>
-                <option value="Other">Other (Custom)</option>
-              </select>
-            </div>
-            {userModal.data?.role === 'Other' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Custom Role</label>
-                <input
-                  type="text"
-                  value={userModal.data?.customRole || ''}
-                  onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, customRole: e.target.value } })}
-                  placeholder="Enter custom role name"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                />
-              </div>
-            )}
-            <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-4">
-              <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={userModal.data?.isActive !== false}
-                  onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, isActive: e.target.checked } })}
-                  className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
-                />
-                <span className="font-medium">Active</span>
-              </label>
-            </div>
-            <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl font-semibold disabled:opacity-60 hover:shadow-lg transition-all">
-              {saving ? 'Saving...' : 'Save User'}
-            </button>
-          </form>
-        </Modal>
-      )}
+                {/* Personal Section */}
 
-      {/* Menu Item Modal */}
-      {menuItemModal.open && (
-        <Modal title={menuItemModal.index !== null ? 'Edit Menu Item' : 'Add Menu Item'} onClose={() => setMenuItemModal({ open: false, data: null, index: null })}>
-          <form onSubmit={saveMenuItem} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
-              <input
-                type="text"
-                value={menuItemModal.data.label || ''}
-                onChange={(e) => setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, label: e.target.value } })}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Link</label>
-              <input
-                type="text"
-                value={menuItemModal.data.link || ''}
-                onChange={(e) => setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, link: e.target.value } })}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Icon Image</label>
-              <div
-                onDrop={handleIconDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-500 transition-colors cursor-pointer"
-              >
-                {iconPreview ? (
-                  <div className="relative">
-                    <img src={iconPreview} alt="Icon preview" className="w-16 h-16 mx-auto object-contain" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIconPreview(null);
-                        setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, icon: null } });
-                      }}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      X
-                    </button>
+                <div>
+
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-4">Personal</h3>
+
+                  <div className="space-y-2">
+
+                    {tabs.filter(tab => tab.section === 'personal').map(tab => (
+
+                      <button
+
+                        key={tab.id}
+
+                        onClick={() => setActiveTab(tab.id)}
+
+                        className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg transition-colors ${
+
+                          activeTab === tab.id
+
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+
+                            : 'hover:bg-gray-100 text-gray-700'
+
+                        }`}
+
+                      >
+
+                        <tab.icon size={16} sm:size={18} md:size={20} />
+
+                        <span className="font-medium text-xs sm:text-sm md:text-base">{tab.label}</span>
+
+                      </button>
+
+                    ))}
+
                   </div>
-                ) : (
-                  <div>
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <p className="mt-1 text-sm text-gray-600">Drop image here or click to upload</p>
+
+                </div>
+
+
+
+                {/* Configuration Section */}
+
+                <div>
+
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-4">Configuration</h3>
+
+                  <div className="space-y-2">
+
+                    {tabs.filter(tab => tab.section === 'configuration').map(tab => (
+
+                      <button
+
+                        key={tab.id}
+
+                        onClick={() => setActiveTab(tab.id)}
+
+                        className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg transition-colors ${
+
+                          activeTab === tab.id
+
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+
+                            : 'hover:bg-gray-100 text-gray-700'
+
+                        }`}
+
+                      >
+
+                        <tab.icon size={16} sm:size={18} md:size={20} />
+
+                        <span className="font-medium text-xs sm:text-sm md:text-base">{tab.label}</span>
+
+                      </button>
+
+                    ))}
+
                   </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleIconUpload}
-                  className="hidden"
-                  id="icon-upload"
-                />
-                <label
-                  htmlFor="icon-upload"
-                  className="mt-2 inline-block text-sm text-purple-600 hover:text-purple-700 cursor-pointer"
-                >
-                  Choose file
-                </label>
-              </div>
+
+                </div>
+
+              </nav>
+
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
-              <input
-                type="number"
-                value={menuItemModal.data.displayOrder || 0}
-                onChange={(e) => setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, displayOrder: parseInt(e.target.value) || 0 } })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-medium text-gray-700">Sub Menus</label>
-                <button
-                  type="button"
-                  onClick={() => openSubMenu()}
-                  className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                >
-                  <Plus size={14} /> Add Sub Menu
-                </button>
-              </div>
-              <div className="space-y-2">
-                {menuItemModal.data.subMenus && menuItemModal.data.subMenus.length > 0 ? (
-                  menuItemModal.data.subMenus.map((subItem, subIndex) => (
-                    <div key={subItem.id || subIndex} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      {subItem.icon && (
-                        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-white border border-gray-200">
-                          <img src={subItem.icon} alt={subItem.label} className="w-full h-full object-contain" />
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800 text-sm">{subItem.label}</p>
-                        <p className="text-xs text-gray-500">{subItem.link}</p>
+
+          </aside>
+
+
+
+          {/* Main Content */}
+
+          <main className="flex-1">
+
+            {activeTab === 'profile' && (
+
+              <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4 md:p-6">
+
+                <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">My Profile</h2>
+
+                
+
+                {/* Profile Header */}
+
+                <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl p-3 sm:p-4 md:p-6 mb-6 text-white">
+
+                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 md:gap-4 sm:gap-6">
+
+                    <div className="relative">
+
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl sm:text-4xl font-bold border-4 border-white/30">
+
+                        {user?.fullName?.charAt(0).toUpperCase() || 'A'}
+
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${subItem.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                          {subItem.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => openSubMenu(subIndex)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteSubMenu(subIndex)}
-                          className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+
+                      <button className="absolute bottom-0 right-0 bg-white text-purple-600 p-2 rounded-full shadow-lg hover:bg-gray-100 transition-colors">
+
+                        <Camera size={16} />
+
+                      </button>
+
                     </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-sm text-center py-4">No sub-menus yet. Click "Add Sub Menu" to create one.</p>
-                )}
-              </div>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={menuItemModal.data.isActive !== false}
-                onChange={(e) => setMenuItemModal({ ...menuItemModal, data: { ...menuItemModal.data, isActive: e.target.checked } })}
-              />
-              Active
-            </label>
-            <button type="submit" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold">
-              {menuItemModal.index !== null ? 'Update Menu Item' : 'Add Menu Item'}
-            </button>
-          </form>
-        </Modal>
-      )}
 
-      {/* Sub Menu Modal */}
-      {subMenuModal.open && (
-        <Modal title={subMenuModal.index !== null ? 'Edit Sub Menu' : 'Add Sub Menu'} onClose={() => setSubMenuModal({ open: false, data: null, index: null })}>
-          <form onSubmit={saveSubMenu} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
-              <input
-                type="text"
-                value={subMenuModal.data.label || ''}
-                onChange={(e) => setSubMenuModal({ ...subMenuModal, data: { ...subMenuModal.data, label: e.target.value } })}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Link</label>
-              <input
-                type="text"
-                value={subMenuModal.data.link || ''}
-                onChange={(e) => setSubMenuModal({ ...subMenuModal, data: { ...subMenuModal.data, link: e.target.value } })}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Icon Image</label>
-              <div
-                onDrop={handleSubMenuIconDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-500 transition-colors cursor-pointer"
-              >
-                {subMenuIconPreview ? (
-                  <div className="relative">
-                    <img src={subMenuIconPreview} alt="Icon preview" className="w-16 h-16 mx-auto object-contain" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSubMenuIconPreview(null);
-                        setSubMenuModal({ ...subMenuModal, data: { ...subMenuModal.data, icon: null } });
-                      }}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      X
+                    <div className="text-center sm:text-left">
+
+                      <h3 className="text-xl sm:text-2xl font-bold">{user?.fullName || 'Admin'}</h3>
+
+                      <p className="opacity-90 text-xs sm:text-sm md:text-base">{user?.email || 'admin@happyshopping.com'}</p>
+
+                      <div className="flex gap-2 mt-2 justify-center sm:justify-start">
+
+                        <span className="bg-white/20 px-3 py-1 rounded-full text-xs sm:text-sm font-semibold">
+
+                          Administrator
+
+                        </span>
+
+                        <span className="bg-green-400/20 px-3 py-1 rounded-full text-xs sm:text-sm font-semibold">
+
+                          Active
+
+                        </span>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+
+
+                {/* Profile Form */}
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                  {/* Personal Information */}
+
+                  <div className="space-y-4">
+
+                    <h4 className="text-lg font-semibold text-gray-800 border-b pb-2">Personal Information</h4>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+
+                      <input
+
+                        type="text"
+
+                        defaultValue={user?.fullName || ''}
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter your full name"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+
+                      <input
+
+                        type="email"
+
+                        defaultValue={user?.email || ''}
+
+                        disabled
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg bg-gray-100 focus:outline-none"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+
+                      <input
+
+                        type="tel"
+
+                        defaultValue={user?.phone || ''}
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter your phone number"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+
+                      <textarea
+
+                        defaultValue={user?.address || ''}
+
+                        rows={3}
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all resize-none"
+
+                        placeholder="Enter your address"
+
+                      />
+
+                    </div>
+
+                  </div>
+
+
+
+                  {/* Payment Methods */}
+
+                  <div className="space-y-4">
+
+                    <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+
+                      <CreditCard size={18} />
+
+                      Payment Methods
+
+                    </h4>
+
+                    <div className="space-y-3">
+
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-gray-200">
+
+                        <div className="flex items-center justify-between mb-2">
+
+                          <div className="flex items-center gap-2">
+
+                            <CreditCard size={16} className="text-blue-600" />
+
+                            <span className="font-semibold text-gray-800">Visa Card</span>
+
+                          </div>
+
+                          <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">Default</span>
+
+                        </div>
+
+                        <p className="text-sm text-gray-600">**** **** **** 4242</p>
+
+                        <p className="text-xs text-gray-500">Expires: 12/25</p>
+
+                      </div>
+
+                      <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+
+                        <div className="flex items-center justify-between mb-2">
+
+                          <div className="flex items-center gap-2">
+
+                            <CreditCard size={16} className="text-gray-600" />
+
+                            <span className="font-semibold text-gray-800">MasterCard</span>
+
+                          </div>
+
+                        </div>
+
+                        <p className="text-sm text-gray-600">**** **** **** 5555</p>
+
+                        <p className="text-xs text-gray-500">Expires: 08/26</p>
+
+                      </div>
+
+                      <button className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-purple-600 transition-colors flex items-center justify-center gap-2">
+
+                        <Plus size={16} />
+
+                        Add Payment Method
+
+                      </button>
+
+                    </div>
+
+                  </div>
+
+
+
+                  {/* Addresses */}
+
+                  <div className="space-y-4">
+
+                    <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+
+                      <MapPin size={18} />
+
+                      Addresses
+
+                    </h4>
+
+                    <div className="space-y-3">
+
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border-2 border-gray-200">
+
+                        <div className="flex items-center justify-between mb-2">
+
+                          <span className="font-semibold text-gray-800">Home Address</span>
+
+                          <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">Default</span>
+
+                        </div>
+
+                        <p className="text-sm text-gray-600">123 Main Street</p>
+
+                        <p className="text-sm text-gray-600">Mumbai, Maharashtra 400001</p>
+
+                        <p className="text-xs text-gray-500">India</p>
+
+                      </div>
+
+                      <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+
+                        <div className="flex items-center justify-between mb-2">
+
+                          <span className="font-semibold text-gray-800">Office Address</span>
+
+                        </div>
+
+                        <p className="text-sm text-gray-600">456 Business Park</p>
+
+                        <p className="text-sm text-gray-600">Bangalore, Karnataka 560001</p>
+
+                        <p className="text-xs text-gray-500">India</p>
+
+                      </div>
+
+                      <button className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-purple-600 transition-colors flex items-center justify-center gap-2">
+
+                        <Plus size={16} />
+
+                        Add Address
+
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+
+
+                {/* Bank Details & Tax Information */}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 pt-6 border-t">
+
+                  {/* Bank Details */}
+
+                  <div className="space-y-4">
+
+                    <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+
+                      <Building size={18} />
+
+                      Bank Details
+
+                    </h4>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Bank Name</label>
+
+                      <input
+
+                        type="text"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter bank name"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Account Number</label>
+
+                      <input
+
+                        type="text"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter account number"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">IFSC Code</label>
+
+                      <input
+
+                        type="text"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter IFSC code"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Account Type</label>
+
+                      <select className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all">
+
+                        <option value="">Select account type</option>
+
+                        <option value="savings">Savings Account</option>
+
+                        <option value="current">Current Account</option>
+
+                      </select>
+
+                    </div>
+
+                  </div>
+
+
+
+                  {/* Tax Information */}
+
+                  <div className="space-y-4">
+
+                    <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2">
+
+                      <FileText size={18} />
+
+                      Tax Information
+
+                    </h4>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">PAN Number</label>
+
+                      <input
+
+                        type="text"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter PAN number"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">GST Number</label>
+
+                      <input
+
+                        type="text"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter GST number"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Tax ID</label>
+
+                      <input
+
+                        type="text"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter tax ID"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="flex items-center gap-2">
+
+                        <input type="checkbox" defaultChecked={false} className="w-4 h-4" />
+
+                        <span className="text-sm text-gray-700">I am tax-exempt</span>
+
+                      </label>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+
+
+                {/* Security Settings */}
+
+                <div className="mt-6 pt-6 border-t">
+
+                  <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 flex items-center gap-2 mb-4">
+
+                    <Shield size={18} />
+
+                    Security Settings
+
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Current Password</label>
+
+                      <input
+
+                        type="password"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter current password"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">New Password</label>
+
+                      <input
+
+                        type="password"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Enter new password"
+
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm New Password</label>
+
+                      <input
+
+                        type="password"
+
+                        className="w-full px-3 sm:px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+
+                        placeholder="Confirm new password"
+
+                      />
+
+                    </div>
+
+                  </div>
+
+                  <div className="mt-4">
+
+                    <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all">
+
+                      Change Password
+
                     </button>
+
                   </div>
-                ) : (
-                  <div>
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <p className="mt-1 text-sm text-gray-600">Drop image here or click to upload</p>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleSubMenuIconUpload}
-                  className="hidden"
-                  id="submenu-icon-upload"
-                />
-                <label
-                  htmlFor="submenu-icon-upload"
-                  className="mt-2 inline-block text-sm text-purple-600 hover:text-purple-700 cursor-pointer"
-                >
-                  Choose file
-                </label>
+
+                </div>
+
+
+
+                {/* Action Buttons */}
+
+                <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t">
+
+                  <button className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 sm:py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all">
+
+                    Update Profile
+
+                  </button>
+
+                  <button className="flex-1 border-2 border-purple-600 text-purple-600 px-4 py-2 sm:py-3 rounded-lg font-semibold hover:bg-purple-50 transition-all">
+
+                    Cancel
+
+                  </button>
+
+                </div>
+
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
-              <input
-                type="number"
-                value={subMenuModal.data.displayOrder || 0}
-                onChange={(e) => setSubMenuModal({ ...subMenuModal, data: { ...subMenuModal.data, displayOrder: parseInt(e.target.value) || 0 } })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+
+            )}
+
+
+
+            {activeTab === 'overview' && (
+
+              <OverviewStats dashboardStats={dashboardStats} />
+
+            )}
+
+
+
+            {activeTab === 'products' && (
+
+              <ProductsSection products={products} productFilter={productFilter} setProductFilter={setProductFilter} categories={categories} handleOpenProductModal={handleOpenProductModal} handleDeleteProduct={handleDeleteProduct} />
+
+            )}
+
+
+
+            {activeTab === 'categories' && (
+
+              <CategoriesSection categories={categories} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} handleOpenCategoryModal={handleOpenCategoryModal} handleDeleteCategory={handleDeleteCategory} showToast={(message, type) => setToast({ show: true, message, type })} />
+
+            )}
+
+
+
+            {activeTab === 'subcategories' && (
+
+              <SubCategoriesSection subCategories={subCategories} subCategoryFilter={subCategoryFilter} setSubCategoryFilter={setSubCategoryFilter} categories={categories} handleOpenSubCategoryModal={handleOpenSubCategoryModal} handleDeleteSubCategory={handleDeleteSubCategory} showToast={(message, type) => setToast({ show: true, message, type })} />
+
+            )}
+
+
+
+            {activeTab === 'configuration' && (
+
+              <SiteConfiguration config={config} setConfig={setConfig} handleSaveConfiguration={handleSaveConfiguration} />
+
+            )}
+
+
+
+            {/* Category Modal */}
+
+            <CategoryModal
+              show={showCategoryModal}
+              onClose={handleCloseCategoryModal}
+              onSave={handleSaveCategory}
+              editingCategory={editingCategory}
+              categoryForm={categoryForm}
+              setCategoryForm={setCategoryForm}
+              handleImageDrop={handleImageDrop}
+              handleImageUpload={handleImageUpload}
+              handleRemoveImage={handleRemoveImage}
+              validationErrors={validationErrors}
+              categoryValidationRules={categoryValidationRules}
+              onFieldValidate={onFieldValidate}
+            />
+
+
+            {/* SubCategory Modal */}
+
+            <SubCategoryModal
+
+              show={showSubCategoryModal}
+
+              onClose={handleCloseSubCategoryModal}
+
+              onSave={handleSaveSubCategory}
+
+              editingSubCategory={editingSubCategory}
+
+              subCategoryForm={subCategoryForm}
+
+              setSubCategoryForm={setSubCategoryForm}
+
+              categories={categories}
+
+              handleImageDrop={handleImageDrop}
+
+              handleImageUpload={handleImageUpload}
+
+              handleRemoveImage={handleRemoveImage}
+
+              validationErrors={validationErrors}
+
+              subCategoryValidationRules={subCategoryValidationRules}
+
+              onFieldValidate={onFieldValidate}
+
+            />
+
+
+
+            {/* Product Modal */}
+
+            <ProductModal
+
+              show={showProductModal}
+
+              onClose={handleCloseProductModal}
+
+              onSave={handleSaveProduct}
+
+              editingProduct={editingProduct}
+
+              productForm={productForm}
+
+              setProductForm={setProductForm}
+
+              categories={categories}
+
+              handleImageDrop={handleImageDrop}
+
+              convertToBase64={convertToBase64}
+
+              handleRemoveImage={handleRemoveImage}
+
+            />
+
+
+
+            {/* Delete Confirmation Modal */}
+
+            <DeleteConfirmationModal
+
+              show={showDeleteModal}
+
+              onClose={handleCloseDeleteModal}
+
+              onConfirm={handleConfirmDelete}
+
+              deleteTarget={deleteTarget}
+
+            />
+
+            {/* Toast Notification */}
+            <Toast
+              show={toast.show}
+              onClose={() => setToast({ ...toast, show: false })}
+              message={toast.message}
+              type={toast.type}
+            />
+
+
+
+            {/* Vendor Modal */}
+
+            {/* User Modal */}
+
+            <UserModal
+
+              ref={userModalRef}
+
+              onSuccess={loadDashboardData}
+
+              showToast={(message, type) => setToast({ show: true, message, type })}
+
+            />
+
+
+
+            <VendorModal
+
+              show={showVendorModal}
+
+              onClose={handleCloseVendorModal}
+
+              onSave={handleSaveVendor}
+
+              editingVendor={editingVendor}
+
+              vendorForm={vendorForm}
+
+              setVendorForm={setVendorForm}
+
+              validationErrors={validationErrors}
+
+              validateField={validateField}
+
+              defaultValidationRules={defaultValidationRules}
+
+            />
+
+
+
+            {activeTab === 'vendors' && (
+
+              <VendorsSection vendors={vendors} vendorFilter={vendorFilter} setVendorFilter={setVendorFilter} handleOpenVendorModal={handleOpenVendorModal} handleDeleteVendor={handleDeleteVendor} />
+
+            )}
+
+
+
+            {activeTab === 'orders' && (
+
+              <OrdersSection orders={orders} />
+
+            )}
+
+
+
+            {activeTab === 'users' && (
+
+              <UsersSection
+
+                users={users}
+
+                userFilter={userFilter}
+
+                setUserFilter={setUserFilter}
+
+                userModalRef={userModalRef}
+
+                onDeleteUser={handleDeleteUser}
+
               />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={subMenuModal.data.isActive !== false}
-                onChange={(e) => setSubMenuModal({ ...subMenuModal, data: { ...subMenuModal.data, isActive: e.target.checked } })}
-              />
-              Active
-            </label>
-            <button type="submit" className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-2.5 rounded-xl font-semibold">
-              {subMenuModal.index !== null ? 'Update Sub Menu' : 'Add Sub Menu'}
-            </button>
-          </form>
-        </Modal>
-      )}
 
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        open={deleteModal.open}
-        item={deleteModal.item}
-        type={deleteModal.type}
-        onClose={() => setDeleteModal({ open: false, item: null, type: null, onConfirm: null })}
-        onConfirm={deleteModal.onConfirm}
-      />
+            )}
 
-      {/* Custom Confirmation Modal */}
-      <ConfirmModal
-        open={confirmModal.open}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        onClose={() => setConfirmModal({ open: false, title: '', message: '', onConfirm: null })}
-        onConfirm={confirmModal.onConfirm}
-      />
+
+
+            {activeTab === 'settings' && (
+
+              <SettingsSection />
+
+            )}
+
+          </main>
+
+        </div>
+
+      </div>
+
     </div>
+
   );
+
 };
 
-const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-    <div
-      className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 border border-gray-100"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-bold text-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{title}</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full p-1 transition-colors">
-          <X size={24} />
-        </button>
-      </div>
-      {children}
-    </div>
-  </div>
-);
 
-const DeleteConfirmModal = ({ open, item, type, onClose, onConfirm }) => {
-  if (!open) return null;
-  
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-gray-100"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-4 mb-4">
-          <div className="bg-red-100 rounded-full p-3">
-            <Trash2 className="text-red-600" size={24} />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-gray-800">Delete {type === 'menu' ? 'Menu Item' : 'Sub Menu'}</h3>
-            <p className="text-sm text-gray-500">This action cannot be undone</p>
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <p className="text-sm text-gray-600">
-            Are you sure you want to delete <span className="font-semibold text-gray-800">"{item?.label || 'this item'}"</span>?
-          </p>
-        </div>
-        
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ConfirmModal = ({ open, title, message, onClose, onConfirm }) => {
-  if (!open) return null;
-  
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-gray-100"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-4 mb-4">
-          <div className="bg-orange-100 rounded-full p-3">
-            <AlertCircle className="text-orange-600" size={24} />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-            <p className="text-sm text-gray-500">Please confirm your action</p>
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <p className="text-sm text-gray-600">{message}</p>
-        </div>
-        
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
-          >
-            Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Field = ({ label, value, onChange, type = 'text', required }) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-    <input
-      type={type}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value)}
-      required={required}
-      step={type === 'number' ? 'any' : undefined}
-      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-    />
-  </div>
-);
 
 export default AdminDashboard;
+
