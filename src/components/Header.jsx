@@ -24,6 +24,7 @@ const Header = () => {
       textColor: '#FFFFFF',
       showSearchIcon: false,
       showLoginIcon: false,
+      showCartIcon: false,
       customIcons: [],
       logoBrandingOrder: 1,
       searchSettingsOrder: 2,
@@ -91,6 +92,16 @@ const Header = () => {
                 <Search size={20} />
               </button>
             )}
+            {config.header?.showCartIcon && (
+              <a href="/cart" className="p-2 rounded-lg hover:bg-white/10 transition-all relative" style={{ color: config.header?.textColor || '#FFFFFF' }}>
+                <ShoppingBag size={20} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                    {cartCount}
+                  </span>
+                )}
+              </a>
+            )}
             {config.header?.showLoginIcon && (
               <a href={isAuthenticated ? (isAdmin ? '/admin' : '/dashboard') : '/login'} className="p-2 rounded-lg hover:bg-white/10 transition-all" style={{ color: config.header?.textColor || '#FFFFFF' }}>
                 <User size={20} />
@@ -116,6 +127,16 @@ const Header = () => {
           </div>
 
           <nav className="flex items-center gap-4">
+            {config.header?.showCartIcon && (
+              <a href="/cart" className="p-2 rounded-lg hover:bg-white/10 transition-all relative" style={{ color: config.header?.textColor || '#FFFFFF' }}>
+                <ShoppingBag size={22} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                    {cartCount}
+                  </span>
+                )}
+              </a>
+            )}
             {config.header?.showLoginIcon && (
               isAuthenticated ? (
                 <div className="flex items-center gap-3">
@@ -182,7 +203,17 @@ const Header = () => {
         {mobileMenuOpen && (
           <div className="md:hidden bg-white rounded-lg mt-2 p-4 shadow-lg">
             <div className="flex flex-col gap-4">
-              
+              {config.header?.showCartIcon && (
+                <a href="/cart" className="flex items-center gap-2 text-gray-700 hover:text-purple-600 py-2 px-3 rounded-lg hover:bg-purple-50">
+                  <ShoppingBag size={18} />
+                  <span>Cart</span>
+                  {cartCount > 0 && (
+                    <span className="bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                      {cartCount}
+                    </span>
+                  )}
+                </a>
+              )}
               {isAuthenticated ? (
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://ganeshtech2017.runasp.net/api';
-// const API_BASE_URL = 'http://localhost:5041/api';
+export const API_BASE_URL = 'https://ganeshtech2017.runasp.net/api';
+// export const API_BASE_URL = 'http://localhost:5041/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -44,6 +44,7 @@ export const productAPI = {
   update: (id, data) => api.put(`/product/${id}`, data),
   delete: (id) => api.delete(`/product/${id}`),
   toggleFeatured: (id, data) => api.post(`/product/${id}/featured`, data),
+  getValidationRules: () => api.get('/product/validation-rules'),
 };
 
 // Search API
@@ -100,7 +101,8 @@ export const cartAPI = {
   getCart: (userId) => api.get(`/cart/${userId}`),
   addToCart: (data) => api.post('/cart', data),
   updateCart: (cartId, data) => api.put(`/cart/${cartId}`, data),
-  removeFromCart: (cartId, itemId) => api.delete(`/cart/${cartId}/item/${itemId}`),
+  updateCartItem: (cartId, itemId, data) => api.put(`/cart/${cartId}/item/${itemId}`, data),
+  removeFromCart: (cartId, itemId, variantId) => api.delete(`/cart/${cartId}/item/${itemId}/${variantId}`),
   clearCart: (cartId) => api.delete(`/cart/${cartId}`),
 };
 

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { cartAPI } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext(null);
 
@@ -15,14 +16,13 @@ export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState(null);
   const [cartCount, setCartCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
+    if (user?.id) {
       loadCart(user.id);
     }
-  }, []);
+  }, [user]);
 
   const loadCart = async (userId) => {
     try {
@@ -40,27 +40,47 @@ export const CartProvider = ({ children }) => {
 
   const addToCart = async (product, quantity = 1) => {
     try {
-      const storedUser = localStorage.getItem('user');
-      if (!storedUser) {
+      console.log('Current user:', user);
+      const userId = user?.id || user?.Id;
+      if (!userId) {
         alert('Please login to add items to cart');
         return { success: false };
       }
 
-      const user = JSON.parse(storedUser);
+      const variant = product.selectedVariant || product.variants?.[0];
+      
+      const itemPrice = Number(variant?.price || product.price || 0);
+      const originalPrice = Number(product.originalPrice || 0);
+      const discountPercentage = Number(product.discountPercentage || 0);
+      const stock = Number(variant?.stock || product.stock || 0);
+      
       const cartItem = {
-        productId: product.id,
-        variantId: product.variants?.[0]?.id || null,
-        quantity,
-        price: product.price
+        productId: String(product.id || ''),
+        productName: String(product.name || ''),
+        productImage: String((product.imageBase64 || product.imageUrls)?.[0] || ''),
+        variantId: String(variant?.id || ''),
+        color: String(product.selectedColor || variant?.color || ''),
+        colorCode: String(variant?.colorCode || ''),
+        size: String(product.selectedSize || (variant?.sizes?.[0]) || ''),
+        quantity: Number(quantity || 1),
+        price: itemPrice,
+        originalPrice: originalPrice,
+        discountPercentage: discountPercentage,
+        stock: stock
       };
 
       const cartData = {
-        userId: user.id,
+        userId: String(userId),
         items: [cartItem],
-        totalAmount: product.price * quantity
+        subtotal: itemPrice * Number(quantity || 1),
+        discountAmount: 0,
+        deliveryCharge: 0,
+        totalAmount: itemPrice * Number(quantity || 1)
       };
 
+      console.log('Sending cart data:', cartData);
       const response = await cartAPI.addToCart(cartData);
+      console.log('Cart response:', response.data);
       if (response.data.success) {
         setCart(response.data.cart);
         setCartCount(response.data.cart.items?.length || 0);
@@ -68,15 +88,16 @@ export const CartProvider = ({ children }) => {
       }
       return { success: false };
     } catch (error) {
+      console.error('Add to cart error:', error);
       return { success: false };
     }
   };
 
-  const removeFromCart = async (productId) => {
+  const removeFromCart = async (productId, variantId) => {
     try {
       if (!cart) return { success: false };
       
-      const response = await cartAPI.removeFromCart(cart.id, productId);
+      const response = await cartAPI.removeFromCart(cart.id, productId, variantId);
       if (response.data.success) {
         setCart(response.data.cart);
         setCartCount(response.data.cart.items?.length || 0);
@@ -84,31 +105,23 @@ export const CartProvider = ({ children }) => {
       }
       return { success: false };
     } catch (error) {
+      console.error('Remove from cart error:', error);
       return { success: false };
     }
   };
 
-  const updateQuantity = async (productId, quantity) => {
+  const updateQuantity = async (productId, variantId, quantity) => {
     try {
       if (!cart) return { success: false };
 
-      const updatedItems = cart.items.map(item =>
-        item.productId === productId ? { ...item, quantity } : item
-      );
-
-      const updatedCart = {
-        ...cart,
-        items: updatedItems,
-        totalAmount: updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-      };
-
-      const response = await cartAPI.updateCart(cart.id, updatedCart);
+      const response = await cartAPI.updateCartItem(cart.id, productId, { variantId, quantity });
       if (response.data.success) {
         setCart(response.data.cart);
         return { success: true };
       }
       return { success: false };
     } catch (error) {
+      console.error('Update quantity error:', error);
       return { success: false };
     }
   };

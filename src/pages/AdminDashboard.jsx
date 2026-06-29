@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../services/api';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -58,7 +59,11 @@ import {
 
   Building,
 
-  FileText
+  FileText,
+
+  MessageCircle,
+
+  Star
 
 } from 'lucide-react';
 
@@ -93,6 +98,8 @@ import VendorModal from '../components/admin/VendorModal';
 import UserModal from '../components/admin/users/UserModal';
 
 import DeleteConfirmationModal from '../components/admin/DeleteConfirmationModal';
+
+import ReviewsSection from '../components/admin/ReviewsSection';
 
 import Toast from '../components/Toast';
 
@@ -132,6 +139,8 @@ const AdminDashboard = () => {
   const [orders, setOrders] = useState([]);
 
   const [users, setUsers] = useState([]);
+
+  const [reviews, setReviews] = useState([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -629,6 +638,17 @@ const AdminDashboard = () => {
 
       ]);
 
+      // Load reviews
+      try {
+        const reviewsRes = await fetch(`${API_BASE_URL}/review`);
+        const reviewsData = await reviewsRes.json();
+        if (reviewsData.success) {
+          setReviews(reviewsData.reviews);
+        }
+      } catch (error) {
+        console.error('Failed to load reviews');
+      }
+
       
 
       // Try to load users separately to handle 404 gracefully
@@ -1082,6 +1102,10 @@ const AdminDashboard = () => {
 
         await userAPI.delete(deleteTarget.id);
 
+      } else if (deleteTarget.type === 'review') {
+
+        await handleConfirmDeleteReview();
+        return;
       }
 
       setToast({
@@ -1328,6 +1352,66 @@ const AdminDashboard = () => {
 
     setShowDeleteModal(true);
 
+  };
+
+  // Review handlers
+  const handleApproveReview = async (reviewId, isApproved) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/review/${reviewId}/approve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isApproved })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setReviews(reviews.map(r => r.id === reviewId ? { ...r, isApproved } : r));
+        setToast({
+          show: true,
+          message: isApproved ? 'Review approved successfully!' : 'Review unapproved',
+          type: 'success'
+        });
+      }
+    } catch (error) {
+      setToast({
+        show: true,
+        message: 'Failed to update review status',
+        type: 'error'
+      });
+    }
+  };
+
+  const handleDeleteReview = async (review) => {
+    setDeleteTarget({
+      type: 'review',
+      id: review.id,
+      name: `Review by ${review.userName}`
+    });
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDeleteReview = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/review/${deleteTarget.id}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.success) {
+        setReviews(reviews.filter(r => r.id !== deleteTarget.id));
+        setToast({
+          show: true,
+          message: 'Review deleted successfully!',
+          type: 'success'
+        });
+      }
+    } catch (error) {
+      setToast({
+        show: true,
+        message: 'Failed to delete review',
+        type: 'error'
+      });
+    }
+    setShowDeleteModal(false);
+    setDeleteTarget({ type: '', id: '', name: '' });
   };
 
 
@@ -1880,6 +1964,8 @@ const AdminDashboard = () => {
     { id: 'orders', label: 'Order Management', icon: ShoppingCart, section: 'management' },
 
     { id: 'users', label: 'Users', icon: UserCheck, section: 'management' },
+
+    { id: 'reviews', label: 'Reviews', icon: Star, section: 'management' },
 
     { id: 'profile', label: 'My Profile', icon: Users, section: 'personal' },
 
@@ -3008,6 +3094,24 @@ const AdminDashboard = () => {
                 userModalRef={userModalRef}
 
                 onDeleteUser={handleDeleteUser}
+
+              />
+
+            )}
+
+
+
+            {activeTab === 'reviews' && (
+
+              <ReviewsSection
+
+                reviews={reviews}
+
+                onApprove={handleApproveReview}
+
+                onDelete={handleDeleteReview}
+
+                onFilterChange={() => {}}
 
               />
 
